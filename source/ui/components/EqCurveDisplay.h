@@ -1,4 +1,19 @@
+/*
+ * Advanced EQ - Open-source parametric equalizer plugin
+ * Copyright (C) 2024-2026 Advanced EQ contributors
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ */
 #pragma once
+
+/**
+ * @file EqCurveDisplay.h
+ * @brief Interactive parametric EQ curve display with spectrum analyzer overlay.
+ */
 
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "../../PluginProcessor.h"
@@ -9,32 +24,100 @@
 #include "../../analyzer/SpectrumAnalyzer.h"
 #include "../LookAndFeel/ColourPalette.h"
 
+/**
+ * @class EqCurveDisplay
+ * @brief Main visual component for the parametric EQ curve editor.
+ *
+ * Renders per-band EQ curves, a composite magnitude response, and a real-time
+ * spectrum analyzer overlay (pre- and post-EQ). Handles all mouse interaction
+ * for creating, selecting, and editing EQ bands.
+ *
+ * **Interaction model:**
+ * - Click empty space: create a new band at that frequency/gain
+ * - Click handle: select an existing band
+ * - Drag handle: adjust frequency (X axis) and gain (Y axis)
+ * - Scroll on band: adjust Q factor
+ * - Double-click handle: deactivate band
+ * - Right-click: context menu (bypass, delete, set type/slope/stereo, reset)
+ *
+ * @see ProcessingChain, BottomControlStrip
+ */
 class EqCurveDisplay : public juce::Component,
                        public juce::Timer
 {
 public:
+    /** @brief Constructs the curve display, referencing the processor for parameter and DSP access.
+     *  @param processor The audio processor that owns the APVTS and processing chain.
+     */
     explicit EqCurveDisplay (AdvancedEQProcessor& processor);
     ~EqCurveDisplay() override = default;
 
+    /** @brief Paints the grid, band curves, composite response, spectrum, handles, and tooltip. */
     void paint (juce::Graphics& g) override;
+
+    /** @brief Recalculates coordinate mapping and pre-computes frequency points on resize. */
     void resized() override;
+
+    /** @brief Timer-driven UI refresh: updates curves and spectrum data at the configured rate. */
     void timerCallback() override;
 
     // Mouse interaction
+    /** @brief Handles band selection, creation, and right-click context menus.
+     *  @param e The mouse event with position and modifier information.
+     */
     void mouseDown (const juce::MouseEvent& e) override;
+
+    /** @brief Drags the selected band handle to adjust frequency and gain.
+     *  @param e The mouse event with current drag position.
+     */
     void mouseDrag (const juce::MouseEvent& e) override;
+
+    /** @brief Ends a band drag operation.
+     *  @param e The mouse event at release position.
+     */
     void mouseUp (const juce::MouseEvent& e) override;
+
+    /** @brief Updates hover state and preview curve as the mouse moves.
+     *  @param e The mouse event with current cursor position.
+     */
     void mouseMove (const juce::MouseEvent& e) override;
+
+    /** @brief Deactivates the band under the cursor on double-click.
+     *  @param e The mouse event at the double-click position.
+     */
     void mouseDoubleClick (const juce::MouseEvent& e) override;
+
+    /** @brief Adjusts Q factor of the hovered or selected band via mouse wheel.
+     *  @param e     The mouse event with cursor position.
+     *  @param wheel The scroll delta information.
+     */
     void mouseWheelMove (const juce::MouseEvent& e,
                          const juce::MouseWheelDetails& wheel) override;
+
+    /** @brief Clears hover state when the mouse leaves the component.
+     *  @param e The mouse event.
+     */
     void mouseExit (const juce::MouseEvent& e) override;
 
+    /** @brief Returns the index of the currently selected band, or -1 if none.
+     *  @return The selected band index.
+     */
     int getSelectedBand() const { return selectedBand; }
+
+    /** @brief Freezes or unfreezes the spectrum analyzer display.
+     *  @param frozen True to freeze the analyzer, false to resume real-time updates.
+     */
     void setAnalyzerFrozen (bool frozen) { analyzerFrozen = frozen; }
+
+    /** @brief Returns whether the spectrum analyzer is currently frozen.
+     *  @return True if frozen, false otherwise.
+     */
     bool isAnalyzerFrozen() const { return analyzerFrozen; }
 
-    // Callback when band selection changes
+    /** @brief Callback invoked when the selected band changes.
+     *
+     * The parameter is the new band index, or -1 if selection is cleared.
+     */
     std::function<void (int)> onBandSelected;
 
 private:

@@ -1,11 +1,40 @@
+/*
+ * Advanced EQ - Open-source parametric equalizer plugin
+ * Copyright (C) 2024-2026 Advanced EQ contributors
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ */
 #pragma once
+
+/**
+ * @file AdvancedEqLookAndFeel.h
+ * @brief Custom JUCE LookAndFeel for studio rack gear visual style.
+ */
 
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "ColourPalette.h"
 
+/**
+ * @class AdvancedEqLookAndFeel
+ * @brief Extends LookAndFeel_V4 with custom rendering for rotary sliders, buttons,
+ *        and combo boxes styled after studio rack gear.
+ *
+ * Rotary sliders are drawn as metallic knobs with a radial gradient body, rim highlight,
+ * value arc, and pointer dot. Buttons use a vertical gradient fill with bevel lines and
+ * hover/press states. Combo boxes are rendered with a panel gradient and dropdown arrow.
+ *
+ * All color values are sourced from ColourPalette.
+ *
+ * @see ColourPalette
+ */
 class AdvancedEqLookAndFeel : public juce::LookAndFeel_V4
 {
 public:
+    /** @brief Constructs the look-and-feel and sets default JUCE colour IDs from ColourPalette. */
     AdvancedEqLookAndFeel()
     {
         setColour (juce::ResizableWindow::backgroundColourId, ColourPalette::background());
@@ -25,6 +54,17 @@ public:
         setColour (juce::PopupMenu::highlightedTextColourId, ColourPalette::textBright());
     }
 
+    /** @brief Draws a metallic rotary knob with a value arc, pointer dot, and notch marks.
+     *  @param g                The graphics context.
+     *  @param x                Left edge of the knob area.
+     *  @param y                Top edge of the knob area.
+     *  @param width            Width of the knob area.
+     *  @param height           Height of the knob area.
+     *  @param sliderPos        Normalized slider position in [0, 1].
+     *  @param rotaryStartAngle Start angle of the rotary arc in radians.
+     *  @param rotaryEndAngle   End angle of the rotary arc in radians.
+     *  @param slider           The slider component being drawn.
+     */
     void drawRotarySlider (juce::Graphics& g, int x, int y, int width, int height,
                            float sliderPos, float rotaryStartAngle, float rotaryEndAngle,
                            juce::Slider& slider) override
@@ -93,6 +133,13 @@ public:
         (void) slider;
     }
 
+    /** @brief Draws a button background with gradient fill, bevel lines, and hover/press states.
+     *  @param g                The graphics context.
+     *  @param button           The button component being drawn.
+     *  @param backgroundColour The base background colour (unused; ColourPalette is used instead).
+     *  @param isMouseOverButton True if the mouse is hovering over the button.
+     *  @param isButtonDown      True if the button is currently pressed.
+     */
     void drawButtonBackground (juce::Graphics& g, juce::Button& button,
                                const juce::Colour&,
                                bool isMouseOverButton, bool isButtonDown) override
@@ -146,6 +193,17 @@ public:
         g.drawRoundedRectangle (bounds, cornerSize, 0.5f);
     }
 
+    /** @brief Draws a combo box with a panel gradient, bevel lines, and a dropdown arrow.
+     *  @param g            The graphics context.
+     *  @param width        Width of the combo box area.
+     *  @param height       Height of the combo box area.
+     *  @param isButtonDown True if the dropdown button is currently pressed.
+     *  @param buttonX      Unused button area X.
+     *  @param buttonY      Unused button area Y.
+     *  @param buttonW      Unused button area width.
+     *  @param buttonH      Unused button area height.
+     *  @param box          The combo box component being drawn.
+     */
     void drawComboBox (juce::Graphics& g, int width, int height, bool isButtonDown,
                        int, int, int, int, juce::ComboBox& box) override
     {

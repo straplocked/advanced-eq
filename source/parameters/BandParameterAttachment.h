@@ -1,10 +1,39 @@
+/*
+ * Advanced EQ - Open-source parametric equalizer plugin
+ * Copyright (C) 2024-2026 Advanced EQ contributors
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ */
 #pragma once
+
+/**
+ * @file BandParameterAttachment.h
+ * @brief Lock-free parameter bridge between APVTS and DSP engine.
+ */
 
 #include <juce_audio_processors/juce_audio_processors.h>
 #include "../dsp/EqBand.h"
 #include "../dsp/FilterTypes.h"
 #include "ParameterIDs.h"
 
+/**
+ * @brief Caches atomic parameter pointers from APVTS for zero-allocation, lock-free audio-thread reads.
+ *
+ * On construction (or after init()), stores the std::atomic<float>* pointers
+ * returned by getRawParameterValue() for all 12 per-band parameters. The
+ * getCurrentParameters() method then reads these atomics to build a
+ * BandParameters struct without any heap allocation or locking, making it
+ * safe to call on the audio thread every processBlock().
+ *
+ * @note Thread safety relies on JUCE's atomic parameter storage; no additional
+ *       locks are needed.
+ *
+ * @see ParameterIDs, BandParameters
+ */
 // Bridges APVTS parameter values to DSP EqBand.
 // Caches getRawParameterValue() pointers for lock-free audio thread reads.
 class BandParameterAttachment
@@ -12,6 +41,15 @@ class BandParameterAttachment
 public:
     BandParameterAttachment() = default;
 
+    /**
+     * @brief Initializes atomic parameter pointers for the specified band.
+     *
+     * Must be called once after APVTS construction, before any audio processing
+     * begins. Caches pointers to all 12 per-band parameters for the given band.
+     *
+     * @param bandIndex Zero-based band index (0..23).
+     * @param apvts The AudioProcessorValueTreeState that owns the parameters.
+     */
     void init (int bandIndex, juce::AudioProcessorValueTreeState& apvts)
     {
         rawActive     = apvts.getRawParameterValue (ParamIDs::bandParam (bandIndex, ParamIDs::kActive));
@@ -28,6 +66,15 @@ public:
         rawDynRelease = apvts.getRawParameterValue (ParamIDs::bandParam (bandIndex, ParamIDs::kDynRelease));
     }
 
+    /**
+     * @brief Reads current parameter values into a BandParameters struct.
+     *
+     * Performs lock-free atomic loads on all cached parameter pointers.
+     * Safe to call from the audio thread with zero allocation overhead.
+     *
+     * @return A BandParameters struct populated with the current values of all
+     *         12 per-band parameters.
+     */
     // Read current parameter values (lock-free, safe for audio thread)
     BandParameters getCurrentParameters() const
     {
