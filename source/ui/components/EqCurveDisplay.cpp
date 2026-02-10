@@ -262,8 +262,19 @@ void EqCurveDisplay::drawBandHandles (juce::Graphics& g)
         auto colour = ColourPalette::bandColour (b);
         float radius = (b == selectedBand) ? 8.0f : 6.0f;
 
+        // Stereo placement indicator (tint outer ring for non-Stereo placements)
+        auto* stereoParam = apvts.getRawParameterValue (
+            ParamIDs::bandParam (b, ParamIDs::kStereo));
+        auto placement = static_cast<StereoPlacement> ((int) stereoParam->load());
+
+        juce::Colour ringColour = colour;
+        if (placement == StereoPlacement::Left)       ringColour = ColourPalette::leftColour();
+        else if (placement == StereoPlacement::Right)  ringColour = ColourPalette::rightColour();
+        else if (placement == StereoPlacement::Mid)    ringColour = ColourPalette::midColour();
+        else if (placement == StereoPlacement::Side)   ringColour = ColourPalette::sideColour();
+
         // Outer ring
-        g.setColour (colour);
+        g.setColour (ringColour);
         g.drawEllipse (x - radius, y - radius, radius * 2.0f, radius * 2.0f, 2.0f);
 
         // Fill
@@ -339,6 +350,13 @@ void EqCurveDisplay::drawTooltip (juce::Graphics& g)
 
     if (showSlope)
         text += "  " + ParamIDs::getSlopeNames()[slopeIndex];
+
+    // Show stereo placement when not default "Stereo"
+    auto* stereoParam = apvts.getRawParameterValue (
+        ParamIDs::bandParam (band, ParamIDs::kStereo));
+    int stereoIndex = (int) stereoParam->load();
+    if (stereoIndex > 0) // 0 = Stereo (default)
+        text += "  " + ParamIDs::getStereoPlacementNames()[stereoIndex];
 
     float x = frequencyToX (freq);
     float y = gainToY (gain) - 22.0f;

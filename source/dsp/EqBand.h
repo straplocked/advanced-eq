@@ -35,8 +35,11 @@ public:
 
     void updateParameters (const BandParameters& params);
 
-    // Process stereo buffer (only processes the channels this band targets)
+    // Process stereo buffer (both L and R channels)
     void process (juce::AudioBuffer<float>& buffer, int numSamples);
+
+    // Process a single channel (uses filterL only). Used for L/R/Mid/Side routing.
+    void processSingleChannel (float* channelData, int numSamples);
 
     // For UI: compute magnitude response at given frequencies
     void computeMagnitudeResponse (const double* frequencies, double* magnitudes,

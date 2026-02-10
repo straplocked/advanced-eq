@@ -19,6 +19,10 @@ void EqBand::reset()
 
 void EqBand::updateParameters (const BandParameters& params)
 {
+    // Reset filters when stereo placement changes to prevent clicks from stale state
+    if (params.stereoPlacement != stereoPlacement && active)
+        reset();
+
     currentParams = params;
     active = params.active;
     filterType = params.type;
@@ -79,6 +83,30 @@ void EqBand::process (juce::AudioBuffer<float>& buffer, int numSamples)
             filterL.process (buffer.getWritePointer (0), numSamples);
         if (buffer.getNumChannels() > 1)
             filterR.process (buffer.getWritePointer (1), numSamples);
+    }
+}
+
+void EqBand::processSingleChannel (float* channelData, int numSamples)
+{
+    if (! active)
+        return;
+
+    if (smoothedFreq.isSmoothing() || smoothedGain.isSmoothing() || smoothedQ.isSmoothing())
+    {
+        for (int i = 0; i < numSamples; ++i)
+        {
+            float freq = smoothedFreq.getNextValue();
+            float gain = smoothedGain.getNextValue();
+            float q = smoothedQ.getNextValue();
+
+            filterL.setParameters (filterType, freq, q, gain, currentParams.slopeDBPerOct);
+
+            channelData[i] = filterL.processSample (channelData[i]);
+        }
+    }
+    else
+    {
+        filterL.process (channelData, numSamples);
     }
 }
 

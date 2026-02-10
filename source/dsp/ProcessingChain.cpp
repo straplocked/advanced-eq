@@ -1,4 +1,5 @@
 #include "ProcessingChain.h"
+#include "MidSideProcessor.h"
 #include "../utils/MathUtils.h"
 
 void ProcessingChain::prepare (double sr, int maxBlock, int /*numChannels*/)
@@ -21,12 +22,61 @@ void ProcessingChain::reset()
 void ProcessingChain::process (juce::AudioBuffer<float>& buffer)
 {
     int numSamples = buffer.getNumSamples();
+    bool isStereo = buffer.getNumChannels() >= 2;
 
-    // Process each active band
+    // --- Pass 1: Stereo bands (process both L and R) ---
     for (auto& band : bands)
     {
-        if (band.isActive())
+        if (band.isActive() && band.getStereoPlacement() == StereoPlacement::Stereo)
             band.process (buffer, numSamples);
+    }
+
+    if (isStereo)
+    {
+        float* dataL = buffer.getWritePointer (0);
+        float* dataR = buffer.getWritePointer (1);
+
+        // --- Pass 2: Left-only bands ---
+        for (auto& band : bands)
+        {
+            if (band.isActive() && band.getStereoPlacement() == StereoPlacement::Left)
+                band.processSingleChannel (dataL, numSamples);
+        }
+
+        // --- Pass 3: Right-only bands ---
+        for (auto& band : bands)
+        {
+            if (band.isActive() && band.getStereoPlacement() == StereoPlacement::Right)
+                band.processSingleChannel (dataR, numSamples);
+        }
+
+        // --- Pass 4: Mid/Side bands ---
+        bool hasMid = false, hasSide = false;
+        for (const auto& band : bands)
+        {
+            if (! band.isActive()) continue;
+            if (band.getStereoPlacement() == StereoPlacement::Mid)  hasMid = true;
+            if (band.getStereoPlacement() == StereoPlacement::Side) hasSide = true;
+        }
+
+        if (hasMid || hasSide)
+        {
+            MidSideProcessor::encode (dataL, dataR, numSamples);
+
+            for (auto& band : bands)
+            {
+                if (band.isActive() && band.getStereoPlacement() == StereoPlacement::Mid)
+                    band.processSingleChannel (dataL, numSamples);
+            }
+
+            for (auto& band : bands)
+            {
+                if (band.isActive() && band.getStereoPlacement() == StereoPlacement::Side)
+                    band.processSingleChannel (dataR, numSamples);
+            }
+
+            MidSideProcessor::decode (dataL, dataR, numSamples);
+        }
     }
 
     // Apply output gain

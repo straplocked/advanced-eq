@@ -14,6 +14,11 @@ BandControlPanel::BandControlPanel (AdvancedEQProcessor& p)
     slopeSelector.setJustificationType (juce::Justification::centred);
     addAndMakeVisible (slopeSelector);
 
+    // Stereo placement selector
+    stereoSelector.addItemList (ParamIDs::getStereoPlacementNames(), 1);
+    stereoSelector.setJustificationType (juce::Justification::centred);
+    addAndMakeVisible (stereoSelector);
+
     setVisible (false);
     startTimerHz (10);
 }
@@ -22,6 +27,7 @@ BandControlPanel::~BandControlPanel()
 {
     typeAttachment.reset();
     slopeAttachment.reset();
+    stereoAttachment.reset();
 }
 
 void BandControlPanel::setSelectedBand (int bandIndex)
@@ -36,6 +42,7 @@ void BandControlPanel::setSelectedBand (int bandIndex)
         setVisible (false);
         typeAttachment.reset();
         slopeAttachment.reset();
+        stereoAttachment.reset();
         return;
     }
 
@@ -51,6 +58,7 @@ void BandControlPanel::updateAttachments()
     // Must reset old attachments before creating new ones
     typeAttachment.reset();
     slopeAttachment.reset();
+    stereoAttachment.reset();
 
     if (selectedBand < 0)
         return;
@@ -60,6 +68,9 @@ void BandControlPanel::updateAttachments()
 
     slopeAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (
         apvts, ParamIDs::bandParam (selectedBand, ParamIDs::kSlope), slopeSelector);
+
+    stereoAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (
+        apvts, ParamIDs::bandParam (selectedBand, ParamIDs::kStereo), stereoSelector);
 }
 
 void BandControlPanel::updateSlopeEnabled()
@@ -103,18 +114,21 @@ void BandControlPanel::resized()
 {
     auto bounds = getLocalBounds().reduced (6, 4);
 
-    auto topRow = bounds.removeFromTop (24);
-    bounds.removeFromTop (4); // spacing
-    auto bottomRow = bounds.removeFromTop (24);
+    auto row1 = bounds.removeFromTop (22);
+    bounds.removeFromTop (3); // spacing
+    auto row2 = bounds.removeFromTop (22);
+    bounds.removeFromTop (3); // spacing
+    auto row3 = bounds.removeFromTop (22);
 
-    typeSelector.setBounds (topRow);
-    slopeSelector.setBounds (bottomRow);
+    typeSelector.setBounds (row1);
+    slopeSelector.setBounds (row2);
+    stereoSelector.setBounds (row3);
 }
 
 void BandControlPanel::positionNear (float x, float y, juce::Rectangle<int> parentBounds)
 {
     int panelW = 160;
-    int panelH = 60;
+    int panelH = 88;
 
     // Position above the handle by default, below if near top
     int px = (int) (x - panelW / 2.0f);

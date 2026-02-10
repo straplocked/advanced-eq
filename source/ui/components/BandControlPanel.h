@@ -30,9 +30,11 @@ private:
 
     juce::ComboBox typeSelector;
     juce::ComboBox slopeSelector;
+    juce::ComboBox stereoSelector;
 
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> typeAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> slopeAttachment;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> stereoAttachment;
 
     void updateAttachments();
     void updateSlopeEnabled();
