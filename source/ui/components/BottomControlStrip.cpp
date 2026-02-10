@@ -1,0 +1,285 @@
+#include "BottomControlStrip.h"
+#include "../../utils/FrequencyUtils.h"
+
+BottomControlStrip::BottomControlStrip (AdvancedEQProcessor& p)
+    : processor (p)
+{
+    // Band label (colour dot + number)
+    bandLabel.setJustificationType (juce::Justification::centred);
+    bandLabel.setFont (13.0f);
+    bandLabel.setColour (juce::Label::textColourId, ColourPalette::textBright());
+    addChildComponent (bandLabel);
+
+    // Type selector
+    typeSelector.addItemList (ParamIDs::getFilterTypeNames(), 1);
+    typeSelector.setJustificationType (juce::Justification::centred);
+    typeSelector.onChange = [this] { updateSlopeEnabled(); };
+    addChildComponent (typeSelector);
+
+    // Slope selector
+    slopeSelector.addItemList (ParamIDs::getSlopeNames(), 1);
+    slopeSelector.setJustificationType (juce::Justification::centred);
+    addChildComponent (slopeSelector);
+
+    // Stereo placement selector
+    stereoSelector.addItemList (ParamIDs::getStereoPlacementNames(), 1);
+    stereoSelector.setJustificationType (juce::Justification::centred);
+    addChildComponent (stereoSelector);
+
+    // Frequency knob
+    freqSlider.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
+    freqSlider.setTextBoxStyle (juce::Slider::NoTextBox, true, 0, 0);
+    freqSlider.onValueChange = [this] { updateValueLabels(); };
+    addChildComponent (freqSlider);
+
+    // Gain knob
+    gainSlider.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
+    gainSlider.setTextBoxStyle (juce::Slider::NoTextBox, true, 0, 0);
+    gainSlider.onValueChange = [this] { updateValueLabels(); };
+    addChildComponent (gainSlider);
+
+    // Q knob
+    qSlider.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
+    qSlider.setTextBoxStyle (juce::Slider::NoTextBox, true, 0, 0);
+    qSlider.onValueChange = [this] { updateValueLabels(); };
+    addChildComponent (qSlider);
+
+    // Value labels
+    auto setupLabel = [] (juce::Label& label)
+    {
+        label.setJustificationType (juce::Justification::centred);
+        label.setFont (10.0f);
+        label.setColour (juce::Label::textColourId, ColourPalette::axisText());
+    };
+
+    setupLabel (freqLabel);
+    setupLabel (gainLabel);
+    setupLabel (qLabel);
+
+    addChildComponent (freqLabel);
+    addChildComponent (gainLabel);
+    addChildComponent (qLabel);
+
+    startTimerHz (10);
+}
+
+BottomControlStrip::~BottomControlStrip()
+{
+    freqAttachment.reset();
+    gainAttachment.reset();
+    qAttachment.reset();
+    typeAttachment.reset();
+    slopeAttachment.reset();
+    stereoAttachment.reset();
+}
+
+void BottomControlStrip::setSelectedBand (int bandIndex)
+{
+    if (selectedBand == bandIndex)
+        return;
+
+    selectedBand = bandIndex;
+
+    if (selectedBand < 0)
+    {
+        setControlsVisible (false);
+        freqAttachment.reset();
+        gainAttachment.reset();
+        qAttachment.reset();
+        typeAttachment.reset();
+        slopeAttachment.reset();
+        stereoAttachment.reset();
+    }
+    else
+    {
+        updateAttachments();
+        updateSlopeEnabled();
+        updateValueLabels();
+        setControlsVisible (true);
+        bandLabel.setText (juce::String (selectedBand + 1), juce::dontSendNotification);
+        resized();
+    }
+
+    repaint();
+}
+
+void BottomControlStrip::setControlsVisible (bool visible)
+{
+    bandLabel.setVisible (visible);
+    typeSelector.setVisible (visible);
+    slopeSelector.setVisible (visible);
+    stereoSelector.setVisible (visible);
+    freqSlider.setVisible (visible);
+    gainSlider.setVisible (visible);
+    qSlider.setVisible (visible);
+    freqLabel.setVisible (visible);
+    gainLabel.setVisible (visible);
+    qLabel.setVisible (visible);
+}
+
+void BottomControlStrip::updateAttachments()
+{
+    auto& apvts = processor.getAPVTS();
+
+    // Must reset old attachments before creating new ones
+    freqAttachment.reset();
+    gainAttachment.reset();
+    qAttachment.reset();
+    typeAttachment.reset();
+    slopeAttachment.reset();
+    stereoAttachment.reset();
+
+    if (selectedBand < 0)
+        return;
+
+    typeAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (
+        apvts, ParamIDs::bandParam (selectedBand, ParamIDs::kType), typeSelector);
+
+    slopeAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (
+        apvts, ParamIDs::bandParam (selectedBand, ParamIDs::kSlope), slopeSelector);
+
+    stereoAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (
+        apvts, ParamIDs::bandParam (selectedBand, ParamIDs::kStereo), stereoSelector);
+
+    freqAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
+        apvts, ParamIDs::bandParam (selectedBand, ParamIDs::kFrequency), freqSlider);
+
+    gainAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
+        apvts, ParamIDs::bandParam (selectedBand, ParamIDs::kGain), gainSlider);
+
+    qAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
+        apvts, ParamIDs::bandParam (selectedBand, ParamIDs::kQ), qSlider);
+}
+
+void BottomControlStrip::updateSlopeEnabled()
+{
+    if (selectedBand < 0)
+        return;
+
+    auto* typeParam = processor.getAPVTS().getRawParameterValue (
+        ParamIDs::bandParam (selectedBand, ParamIDs::kType));
+    auto type = static_cast<FilterType> ((int) typeParam->load());
+
+    bool slopeApplies = (type == FilterType::LowPass
+                      || type == FilterType::HighPass
+                      || type == FilterType::LowShelf
+                      || type == FilterType::HighShelf);
+
+    slopeSelector.setEnabled (slopeApplies);
+    slopeSelector.setAlpha (slopeApplies ? 1.0f : 0.4f);
+}
+
+void BottomControlStrip::updateValueLabels()
+{
+    freqLabel.setText (FrequencyUtils::formatFrequency ((float) freqSlider.getValue()),
+                       juce::dontSendNotification);
+    gainLabel.setText (juce::String (gainSlider.getValue(), 1) + " dB",
+                       juce::dontSendNotification);
+    qLabel.setText ("Q " + juce::String (qSlider.getValue(), 2),
+                     juce::dontSendNotification);
+}
+
+void BottomControlStrip::timerCallback()
+{
+    if (selectedBand >= 0)
+    {
+        updateSlopeEnabled();
+        updateValueLabels();
+    }
+}
+
+void BottomControlStrip::paint (juce::Graphics& g)
+{
+    auto bounds = getLocalBounds().toFloat();
+
+    // Vertical gradient background
+    juce::ColourGradient grad (ColourPalette::panelTop(), 0, bounds.getY(),
+                               ColourPalette::controlBar(), 0, bounds.getBottom(), false);
+    g.setGradientFill (grad);
+    g.fillRect (bounds);
+
+    // Top edge bevel (raised ridge)
+    g.setColour (ColourPalette::bevelDark());
+    g.drawLine (0.0f, 0.5f, bounds.getRight(), 0.5f, 1.0f);
+    g.setColour (ColourPalette::bevelLight());
+    g.drawLine (0.0f, 1.5f, bounds.getRight(), 1.5f, 1.0f);
+
+    if (selectedBand < 0)
+    {
+        // Show help text when no band selected
+        g.setColour (ColourPalette::textDim());
+        g.setFont (11.0f);
+        g.drawText ("Click to add band  |  Drag to adjust  |  Scroll for Q  |  Double-click to remove",
+                     getLocalBounds(), juce::Justification::centred, false);
+    }
+    else
+    {
+        // Band colour indicator with glow halo
+        auto colour = ColourPalette::bandColour (selectedBand);
+        float dotX = 18.0f;
+        float dotY = (float) getHeight() * 0.35f;
+
+        // Glow
+        g.setColour (colour.withAlpha (0.15f));
+        g.fillEllipse (dotX - 10.0f, dotY - 10.0f, 20.0f, 20.0f);
+
+        // Dot
+        g.setColour (colour);
+        g.fillEllipse (dotX - 5.0f, dotY - 5.0f, 10.0f, 10.0f);
+    }
+}
+
+void BottomControlStrip::resized()
+{
+    auto bounds = getLocalBounds().reduced (8, 4);
+
+    // Band indicator area
+    auto bandArea = bounds.removeFromLeft (30);
+    bandLabel.setBounds (bandArea.removeFromBottom (20));
+
+    bounds.removeFromLeft (4); // spacing
+
+    // Type selector
+    auto typeArea = bounds.removeFromLeft (90);
+    typeSelector.setBounds (typeArea.withHeight (24).withCentre (typeArea.getCentre()));
+
+    bounds.removeFromLeft (8);
+
+    // Knob areas
+    int knobSize = 50;
+    int knobAreaWidth = 70;
+
+    // Frequency knob
+    auto freqArea = bounds.removeFromLeft (knobAreaWidth);
+    auto freqKnobArea = freqArea.removeFromTop (freqArea.getHeight() - 16);
+    freqSlider.setBounds (freqKnobArea.withSizeKeepingCentre (knobSize, knobSize));
+    freqLabel.setBounds (freqArea);
+
+    bounds.removeFromLeft (4);
+
+    // Gain knob
+    auto gainArea = bounds.removeFromLeft (knobAreaWidth);
+    auto gainKnobArea = gainArea.removeFromTop (gainArea.getHeight() - 16);
+    gainSlider.setBounds (gainKnobArea.withSizeKeepingCentre (knobSize, knobSize));
+    gainLabel.setBounds (gainArea);
+
+    bounds.removeFromLeft (4);
+
+    // Q knob
+    auto qArea = bounds.removeFromLeft (knobAreaWidth);
+    auto qKnobArea = qArea.removeFromTop (qArea.getHeight() - 16);
+    qSlider.setBounds (qKnobArea.withSizeKeepingCentre (knobSize, knobSize));
+    qLabel.setBounds (qArea);
+
+    bounds.removeFromLeft (8);
+
+    // Slope selector
+    auto slopeArea = bounds.removeFromLeft (80);
+    slopeSelector.setBounds (slopeArea.withHeight (24).withCentre (slopeArea.getCentre()));
+
+    bounds.removeFromLeft (8);
+
+    // Stereo selector
+    auto stereoArea = bounds.removeFromLeft (70);
+    stereoSelector.setBounds (stereoArea.withHeight (24).withCentre (stereoArea.getCentre()));
+}

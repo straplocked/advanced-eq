@@ -12,7 +12,8 @@ namespace ColourPalette
     inline juce::Colour axisText()          { return juce::Colour (0xff888899); }
 
     // Curve
-    inline juce::Colour compositeCurve()    { return juce::Colour (0xffffffff); }
+    inline juce::Colour compositeCurve()    { return juce::Colour (0xffffd93d); }
+    inline juce::Colour compositeFill()     { return juce::Colour (0x18ffd93d); }
     inline juce::Colour curveFillAbove()    { return juce::Colour (0x20ffffff); }
     inline juce::Colour curveFillBelow()    { return juce::Colour (0x20ffffff); }
 
@@ -50,6 +51,23 @@ namespace ColourPalette
     inline juce::Colour knobForeground()   { return juce::Colour (0xffccccdd); }
     inline juce::Colour textBright()       { return juce::Colour (0xffeeeeee); }
     inline juce::Colour textDim()          { return juce::Colour (0xff777788); }
+
+    // Panel surfaces (gradient top/bottom)
+    inline juce::Colour panelTop()         { return juce::Colour (0xff1e1e3a); }
+    inline juce::Colour panelBottom()      { return juce::Colour (0xff0a0a1a); }
+
+    // Bevels & edges
+    inline juce::Colour bevelLight()       { return juce::Colour (0x18ffffff); }
+    inline juce::Colour bevelDark()        { return juce::Colour (0x30000000); }
+
+    // Screen recess (inner shadow)
+    inline juce::Colour screenShadow()     { return juce::Colour (0x50000000); }
+    inline juce::Colour screenHighlight()  { return juce::Colour (0x08ffffff); }
+
+    // Knob metallic
+    inline juce::Colour knobEdge()         { return juce::Colour (0xff3a3a5c); }
+    inline juce::Colour knobShadow()       { return juce::Colour (0x400a0a1a); }
+    inline juce::Colour knobIndicator()    { return juce::Colour (0xffffd93d); }
 
     // Spectrum
     inline juce::Colour spectrumPre()      { return juce::Colour (0x40888899); }

@@ -14,17 +14,93 @@ EqCurveDisplay::EqCurveDisplay (AdvancedEQProcessor& p)
 
     spectrumAnalyzerPre.prepare (Constants::kCurveResolution);
     spectrumAnalyzerPost.prepare (Constants::kCurveResolution);
+    previewFilter.prepare (44100.0);
 
     startTimerHz (Constants::kUITimerHz);
+}
+
+void EqCurveDisplay::setDisplayRange (DisplayRange range)
+{
+    currentRange = range;
+    switch (range)
+    {
+        case dB3:  displayMinDB = -3.0f;  displayMaxDB = 3.0f;  break;
+        case dB6:  displayMinDB = -6.0f;  displayMaxDB = 6.0f;  break;
+        case dB12: displayMinDB = -12.0f; displayMaxDB = 12.0f; break;
+        case dB30: displayMinDB = -30.0f; displayMaxDB = 30.0f; break;
+    }
+    repaint();
+}
+
+float EqCurveDisplay::getGridStep() const
+{
+    switch (currentRange)
+    {
+        case dB3:  return 1.0f;
+        case dB6:  return 2.0f;
+        case dB12: return 3.0f;
+        case dB30: return 6.0f;
+    }
+    return 6.0f;
+}
+
+juce::Rectangle<float> EqCurveDisplay::getRangeButtonRect (int index) const
+{
+    float btnW = 22.0f;
+    float btnH = 16.0f;
+    float spacing = 2.0f;
+    float startX = (float) getWidth() - 4 * (btnW + spacing) - 4.0f;
+    float startY = 6.0f;
+    return { startX + index * (btnW + spacing), startY, btnW, btnH };
+}
+
+void EqCurveDisplay::drawRangeButtons (juce::Graphics& g)
+{
+    static const char* labels[] = { "3", "6", "12", "30" };
+    static const DisplayRange ranges[] = { dB3, dB6, dB12, dB30 };
+
+    g.setFont (10.0f);
+    for (int i = 0; i < 4; ++i)
+    {
+        auto rect = getRangeButtonRect (i);
+        bool isActive = (currentRange == ranges[i]);
+
+        // Gradient fill — active = accent, inactive = inset
+        if (isActive)
+        {
+            juce::ColourGradient grad (ColourPalette::compositeCurve().withAlpha (0.35f), 0, rect.getY(),
+                                       ColourPalette::compositeCurve().withAlpha (0.15f), 0, rect.getBottom(), false);
+            g.setGradientFill (grad);
+        }
+        else
+        {
+            juce::ColourGradient grad (ColourPalette::knobBackground().darker (0.2f), 0, rect.getY(),
+                                       ColourPalette::knobBackground().brighter (0.1f), 0, rect.getBottom(), false);
+            g.setGradientFill (grad);
+        }
+        g.fillRoundedRectangle (rect, 3.0f);
+
+        // Bevel edges
+        g.setColour (isActive ? ColourPalette::bevelLight().withMultipliedAlpha (1.5f)
+                              : ColourPalette::bevelDark());
+        g.drawLine (rect.getX() + 3.0f, rect.getY(), rect.getRight() - 3.0f, rect.getY(), 1.0f);
+
+        // Outline
+        g.setColour (ColourPalette::gridLine().withAlpha (0.5f));
+        g.drawRoundedRectangle (rect, 3.0f, 0.5f);
+
+        g.setColour (isActive ? ColourPalette::textBright() : ColourPalette::axisText());
+        g.drawText (labels[i], rect, juce::Justification::centred, false);
+    }
 }
 
 void EqCurveDisplay::timerCallback()
 {
     updateCurves();
 
-    // Update spectrum analyzers
+    // Update spectrum analyzers (skip when frozen to keep last captured state)
     auto* analyzerOnParam = processor.getAPVTS().getRawParameterValue (ParamIDs::kAnalyzerOn);
-    if (analyzerOnParam != nullptr && analyzerOnParam->load() >= 0.5f)
+    if (analyzerOnParam != nullptr && analyzerOnParam->load() >= 0.5f && ! analyzerFrozen)
     {
         float w = (float) getWidth();
         float h = (float) getHeight();
@@ -84,26 +160,50 @@ void EqCurveDisplay::paint (juce::Graphics& g)
     // Background
     g.fillAll (ColourPalette::curveArea());
 
+    // Recessed screen inner shadows
+    {
+        float w = (float) getWidth();
+        float h = (float) getHeight();
+        auto shadow = ColourPalette::screenShadow();
+        auto transparent = shadow.withAlpha (0.0f);
+
+        // Top inner shadow
+        juce::ColourGradient topShadow (shadow, 0, 0, transparent, 0, 8.0f, false);
+        g.setGradientFill (topShadow);
+        g.fillRect (0.0f, 0.0f, w, 8.0f);
+
+        // Left inner shadow
+        juce::ColourGradient leftShadow (shadow, 0, 0, transparent, 6.0f, 0, false);
+        g.setGradientFill (leftShadow);
+        g.fillRect (0.0f, 0.0f, 6.0f, h);
+
+        // Bottom catch-light
+        g.setColour (ColourPalette::screenHighlight());
+        g.drawLine (0.0f, h - 0.5f, w, h - 0.5f, 1.0f);
+
+        // Right catch-light
+        g.drawLine (w - 0.5f, 0.0f, w - 0.5f, h, 1.0f);
+    }
+
     drawGrid (g);
 
     // Spectrum analyzer (drawn behind EQ curves)
     auto* analyzerOnParam = processor.getAPVTS().getRawParameterValue (ParamIDs::kAnalyzerOn);
     if (analyzerOnParam != nullptr && analyzerOnParam->load() >= 0.5f)
     {
-        auto* analyzerPreParam = processor.getAPVTS().getRawParameterValue (ParamIDs::kAnalyzerPre);
-        bool showPre = (analyzerPreParam != nullptr && analyzerPreParam->load() >= 0.5f);
-
-        if (showPre)
-            drawSpectrum (g, spectrumAnalyzerPre, ColourPalette::spectrumPre());
-        else
-            drawSpectrum (g, spectrumAnalyzerPost, ColourPalette::spectrumPost());
+        // Always draw both pre and post spectra for visual comparison
+        drawSpectrum (g, spectrumAnalyzerPre, ColourPalette::spectrumPre());
+        drawSpectrum (g, spectrumAnalyzerPost, ColourPalette::spectrumPost());
     }
 
     drawBandCurves (g);
+    if (showPreview)
+        drawPreviewCurve (g);
     drawCompositeCurve (g);
     drawBandHandles (g);
     drawFrequencyLabels (g);
     drawGainLabels (g);
+    drawRangeButtons (g);
     drawTooltip (g);
 }
 
@@ -111,23 +211,26 @@ void EqCurveDisplay::drawGrid (juce::Graphics& g)
 {
     auto bounds = getLocalBounds().toFloat();
 
-    // Frequency grid lines
+    // Frequency grid lines (anti-aliased)
     static const float freqLines[] = { 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000 };
     for (float freq : freqLines)
     {
         float x = frequencyToX (freq);
-        bool isMajor = (freq == 100 || freq == 1000 || freq == 10000);
+        bool isMajor = (freq > 99.0f && freq < 101.0f)
+                     || (freq > 999.0f && freq < 1001.0f)
+                     || (freq > 9999.0f && freq < 10001.0f);
         g.setColour (isMajor ? ColourPalette::gridLineStrong() : ColourPalette::gridLine());
-        g.drawVerticalLine ((int) x, bounds.getY(), bounds.getBottom());
+        g.drawLine (x, bounds.getY(), x, bounds.getBottom(), 1.0f);
     }
 
-    // Gain grid lines
-    for (float db = displayMinDB; db <= displayMaxDB; db += 6.0f)
+    // Gain grid lines (anti-aliased, dynamic step)
+    float step = getGridStep();
+    for (float db = displayMinDB; db <= displayMaxDB; db += step)
     {
         float y = gainToY (db);
         bool isZero = (std::abs (db) < 0.1f);
         g.setColour (isZero ? ColourPalette::gridLineStrong() : ColourPalette::gridLine());
-        g.drawHorizontalLine ((int) y, bounds.getX(), bounds.getRight());
+        g.drawLine (bounds.getX(), y, bounds.getRight(), y, 1.0f);
     }
 }
 
@@ -153,19 +256,23 @@ void EqCurveDisplay::drawGainLabels (juce::Graphics& g)
     g.setColour (ColourPalette::axisText());
     g.setFont (10.0f);
 
-    for (float db = displayMinDB + 6.0f; db < displayMaxDB; db += 6.0f)
+    float step = getGridStep();
+    for (float db = displayMinDB + step; db < displayMaxDB; db += step)
     {
         float y = gainToY (db);
-        juce::String label = (db > 0 ? "+" : "") + juce::String ((int) db);
-        g.drawText (label, 2, (int) (y - 7), 30, 14,
-                    juce::Justification::centredLeft, false);
+        juce::String label;
+        if (step >= 1.0f && std::abs (step - std::floor (step)) < 0.01f)
+            label = (db > 0 ? "+" : "") + juce::String ((int) db);
+        else
+            label = (db > 0 ? "+" : "") + juce::String (db, 1);
+        g.drawText (label, getWidth() - 32, (int) (y - 7), 30, 14,
+                    juce::Justification::centredRight, false);
     }
 }
 
 void EqCurveDisplay::drawBandCurves (juce::Graphics& g)
 {
     float w = (float) getWidth();
-    float h = (float) getHeight();
 
     for (int b = 0; b < Constants::kMaxBands; ++b)
     {
@@ -232,9 +339,74 @@ void EqCurveDisplay::drawCompositeCurve (juce::Graphics& g)
         }
     }
 
-    // Draw white composite curve
+    // Fill between composite curve and 0 dB line
+    float zeroY = gainToY (0.0f);
+    juce::Path fillPath (curvePath);
+    fillPath.lineTo (w, zeroY);
+    fillPath.lineTo (0, zeroY);
+    fillPath.closeSubPath();
+    g.setColour (ColourPalette::compositeFill());
+    g.fillPath (fillPath);
+
+    // Draw composite curve stroke
     g.setColour (ColourPalette::compositeCurve());
     g.strokePath (curvePath, juce::PathStrokeType (2.0f));
+}
+
+void EqCurveDisplay::drawPreviewCurve (juce::Graphics& g)
+{
+    float previewFreq = xToFrequency (previewMouseX);
+    float w = (float) getWidth();
+
+    // Determine colour for the next band that would be created
+    int nextBand = findFirstInactiveBand();
+    if (nextBand < 0)
+        return;
+    auto colour = ColourPalette::bandColour (nextBand);
+
+    // Configure preview filter as a Bell at the hover position
+    previewFilter.setParameters (FilterType::Bell, (double) previewFreq, 1.0, 0.0);
+
+    // Draw faint crosshair at mouse position
+    g.setColour (colour.withAlpha (0.08f));
+    g.drawLine (previewMouseX, 0.0f, previewMouseX, (float) getHeight(), 1.0f);
+    g.drawLine (0.0f, previewMouseY, w, previewMouseY, 1.0f);
+
+    // Draw a subtle bell curve preview (showing shape, not actual boost)
+    // Use a small gain to show the curve shape
+    previewFilter.setParameters (FilterType::Bell, (double) previewFreq, 1.0, 6.0);
+
+    juce::Path curvePath;
+    bool started = false;
+
+    for (int i = 0; i < Constants::kCurveResolution; ++i)
+    {
+        float x = (float) i / (float) (Constants::kCurveResolution - 1) * w;
+        double mag = previewFilter.getMagnitudeAtFrequency (frequencyPoints[(size_t) i]);
+        float y = gainToY ((float) mag);
+
+        if (! started)
+        {
+            curvePath.startNewSubPath (x, y);
+            started = true;
+        }
+        else
+        {
+            curvePath.lineTo (x, y);
+        }
+    }
+
+    g.setColour (colour.withAlpha (0.15f));
+    g.strokePath (curvePath, juce::PathStrokeType (1.5f));
+
+    // Subtle fill
+    float zeroY = gainToY (0.0f);
+    juce::Path fillPath (curvePath);
+    fillPath.lineTo (w, zeroY);
+    fillPath.lineTo (0, zeroY);
+    fillPath.closeSubPath();
+    g.setColour (colour.withAlpha (0.06f));
+    g.fillPath (fillPath);
 }
 
 void EqCurveDisplay::drawBandHandles (juce::Graphics& g)
@@ -260,7 +432,9 @@ void EqCurveDisplay::drawBandHandles (juce::Graphics& g)
         float y = gainToY (gain);
 
         auto colour = ColourPalette::bandColour (b);
-        float radius = (b == selectedBand) ? 8.0f : 6.0f;
+        bool isSelected = (b == selectedBand);
+        bool isHovered = (b == hoveredBand);
+        float radius = isSelected ? 5.0f : 4.0f;
 
         // Stereo placement indicator (tint outer ring for non-Stereo placements)
         auto* stereoParam = apvts.getRawParameterValue (
@@ -273,21 +447,25 @@ void EqCurveDisplay::drawBandHandles (juce::Graphics& g)
         else if (placement == StereoPlacement::Mid)    ringColour = ColourPalette::midColour();
         else if (placement == StereoPlacement::Side)   ringColour = ColourPalette::sideColour();
 
-        // Outer ring
-        g.setColour (ringColour);
-        g.drawEllipse (x - radius, y - radius, radius * 2.0f, radius * 2.0f, 2.0f);
+        // Hover glow
+        if (isHovered || isSelected)
+        {
+            g.setColour (colour.withAlpha (0.25f));
+            float glowRadius = radius + 6.0f;
+            g.fillEllipse (x - glowRadius, y - glowRadius, glowRadius * 2.0f, glowRadius * 2.0f);
+        }
 
-        // Fill
-        g.setColour (colour.withAlpha (b == hoveredBand ? 0.8f : 0.5f));
-        g.fillEllipse (x - radius + 2, y - radius + 2,
-                       radius * 2.0f - 4, radius * 2.0f - 4);
+        // Filled dot
+        g.setColour (colour.withAlpha (isHovered ? 0.95f : 0.8f));
+        g.fillEllipse (x - radius, y - radius, radius * 2.0f, radius * 2.0f);
 
-        // Band number label
-        g.setColour (ColourPalette::textBright());
-        g.setFont (9.0f);
-        g.drawText (juce::String (b + 1),
-                    (int) (x - 6), (int) (y - 5), 12, 10,
-                    juce::Justification::centred, false);
+        // Outer ring (stereo indicator)
+        if (placement != StereoPlacement::Stereo)
+        {
+            g.setColour (ringColour);
+            g.drawEllipse (x - radius - 1.0f, y - radius - 1.0f,
+                           (radius + 1.0f) * 2.0f, (radius + 1.0f) * 2.0f, 1.5f);
+        }
     }
 }
 
@@ -370,8 +548,27 @@ void EqCurveDisplay::drawTooltip (juce::Graphics& g)
     if (tooltipBounds.getRight() > (float) getWidth())
         tooltipBounds.setX ((float) getWidth() - textWidth);
 
-    g.setColour (ColourPalette::controlBar().withAlpha (0.9f));
+    // Frosted glass background
+    juce::ColourGradient tooltipGrad (ColourPalette::controlBar().withAlpha (0.92f), 0, tooltipBounds.getY(),
+                                      ColourPalette::panelBottom().withAlpha (0.88f), 0, tooltipBounds.getBottom(), false);
+    g.setGradientFill (tooltipGrad);
     g.fillRoundedRectangle (tooltipBounds, 4.0f);
+
+    // 3D border edges
+    g.setColour (ColourPalette::bevelLight());
+    g.drawLine (tooltipBounds.getX() + 4.0f, tooltipBounds.getY(),
+                tooltipBounds.getRight() - 4.0f, tooltipBounds.getY(), 0.5f);
+    g.drawLine (tooltipBounds.getX(), tooltipBounds.getY() + 4.0f,
+                tooltipBounds.getX(), tooltipBounds.getBottom() - 4.0f, 0.5f);
+    g.setColour (ColourPalette::bevelDark());
+    g.drawLine (tooltipBounds.getX() + 4.0f, tooltipBounds.getBottom(),
+                tooltipBounds.getRight() - 4.0f, tooltipBounds.getBottom(), 0.5f);
+    g.drawLine (tooltipBounds.getRight(), tooltipBounds.getY() + 4.0f,
+                tooltipBounds.getRight(), tooltipBounds.getBottom() - 4.0f, 0.5f);
+
+    // Subtle outline
+    g.setColour (ColourPalette::gridLine().withAlpha (0.5f));
+    g.drawRoundedRectangle (tooltipBounds, 4.0f, 0.5f);
 
     g.setColour (ColourPalette::textBright());
     g.setFont (11.0f);
@@ -455,7 +652,32 @@ void EqCurveDisplay::activateBandAt (float freq, float gain)
 void EqCurveDisplay::mouseDown (const juce::MouseEvent& e)
 {
     auto pos = e.position;
+
+    // Check range button clicks
+    if (e.mods.isLeftButtonDown())
+    {
+        static const DisplayRange ranges[] = { dB3, dB6, dB12, dB30 };
+        for (int i = 0; i < 4; ++i)
+        {
+            if (getRangeButtonRect (i).contains (pos))
+            {
+                setDisplayRange (ranges[i]);
+                return;
+            }
+        }
+    }
+
     int band = findBandAtPosition (pos);
+
+    // Right-click context menu
+    if (e.mods.isPopupMenu())
+    {
+        if (band >= 0)
+            showBandContextMenu (band);
+        else
+            showEmptySpaceContextMenu (xToFrequency (pos.x), yToGain (pos.y));
+        return;
+    }
 
     if (band >= 0)
     {
@@ -504,9 +726,36 @@ void EqCurveDisplay::mouseUp (const juce::MouseEvent&)
 void EqCurveDisplay::mouseMove (const juce::MouseEvent& e)
 {
     int band = findBandAtPosition (e.position);
+
+    bool needsRepaint = false;
     if (band != hoveredBand)
     {
         hoveredBand = band;
+        needsRepaint = true;
+    }
+
+    // Show preview curve when hovering over empty space
+    bool shouldShowPreview = (band < 0 && ! isDragging);
+    if (shouldShowPreview != showPreview
+        || (shouldShowPreview && (std::abs (previewMouseX - e.position.x) > 0.5f
+                               || std::abs (previewMouseY - e.position.y) > 0.5f)))
+    {
+        showPreview = shouldShowPreview;
+        previewMouseX = e.position.x;
+        previewMouseY = e.position.y;
+        needsRepaint = true;
+    }
+
+    if (needsRepaint)
+        repaint();
+}
+
+void EqCurveDisplay::mouseExit (const juce::MouseEvent&)
+{
+    if (showPreview || hoveredBand >= 0)
+    {
+        showPreview = false;
+        hoveredBand = -1;
         repaint();
     }
 }
@@ -553,4 +802,120 @@ void EqCurveDisplay::mouseWheelMove (const juce::MouseEvent& e,
     float delta = wheel.deltaY * currentQ * 0.3f;
     float newQ = juce::jlimit (Constants::kMinQ, Constants::kMaxQ, currentQ + delta);
     qParam->setValueNotifyingHost (qParam->convertTo0to1 (newQ));
+}
+
+void EqCurveDisplay::showBandContextMenu (int band)
+{
+    juce::PopupMenu menu;
+    auto& apvts = processor.getAPVTS();
+
+    // Bypass / Enable
+    auto* activeParam = apvts.getRawParameterValue (ParamIDs::bandParam (band, ParamIDs::kActive));
+    bool isActive = (activeParam->load() >= 0.5f);
+    menu.addItem (1, isActive ? "Bypass Band" : "Enable Band");
+    menu.addItem (2, "Delete Band");
+    menu.addSeparator();
+
+    // Filter type submenu
+    juce::PopupMenu typeMenu;
+    auto typeNames = ParamIDs::getFilterTypeNames();
+    for (int i = 0; i < typeNames.size(); ++i)
+        typeMenu.addItem (100 + i, typeNames[i]);
+    menu.addSubMenu ("Set Type", typeMenu);
+
+    // Slope submenu
+    juce::PopupMenu slopeMenu;
+    auto slopeNames = ParamIDs::getSlopeNames();
+    for (int i = 0; i < slopeNames.size(); ++i)
+        slopeMenu.addItem (200 + i, slopeNames[i]);
+    menu.addSubMenu ("Set Slope", slopeMenu);
+
+    // Stereo submenu
+    juce::PopupMenu stereoMenu;
+    auto stereoNames = ParamIDs::getStereoPlacementNames();
+    for (int i = 0; i < stereoNames.size(); ++i)
+        stereoMenu.addItem (300 + i, stereoNames[i]);
+    menu.addSubMenu ("Set Stereo", stereoMenu);
+
+    menu.addSeparator();
+    menu.addItem (3, "Reset Band");
+
+    menu.showMenuAsync (juce::PopupMenu::Options(),
+        [this, band] (int result)
+        {
+            if (result == 0)
+                return;
+
+            auto& apvts2 = processor.getAPVTS();
+
+            if (result == 1) // Bypass / Enable
+            {
+                if (auto* param = apvts2.getParameter (ParamIDs::bandParam (band, ParamIDs::kActive)))
+                {
+                    float current = param->getValue();
+                    param->setValueNotifyingHost (current >= 0.5f ? 0.0f : 1.0f);
+                }
+            }
+            else if (result == 2) // Delete
+            {
+                if (auto* param = apvts2.getParameter (ParamIDs::bandParam (band, ParamIDs::kActive)))
+                    param->setValueNotifyingHost (0.0f);
+
+                if (selectedBand == band)
+                {
+                    selectedBand = -1;
+                    if (onBandSelected)
+                        onBandSelected (selectedBand);
+                }
+            }
+            else if (result == 3) // Reset
+            {
+                if (auto* p = apvts2.getParameter (ParamIDs::bandParam (band, ParamIDs::kFrequency)))
+                    p->setValueNotifyingHost (p->convertTo0to1 (Constants::kDefaultFrequency));
+                if (auto* p = apvts2.getParameter (ParamIDs::bandParam (band, ParamIDs::kGain)))
+                    p->setValueNotifyingHost (p->convertTo0to1 (Constants::kDefaultGain));
+                if (auto* p = apvts2.getParameter (ParamIDs::bandParam (band, ParamIDs::kQ)))
+                    p->setValueNotifyingHost (p->convertTo0to1 (Constants::kDefaultQ));
+                if (auto* p = apvts2.getParameter (ParamIDs::bandParam (band, ParamIDs::kType)))
+                    p->setValueNotifyingHost (p->convertTo0to1 (0.0f)); // Bell
+            }
+            else if (result >= 100 && result < 200) // Filter type
+            {
+                int typeIndex = result - 100;
+                if (auto* p = apvts2.getParameter (ParamIDs::bandParam (band, ParamIDs::kType)))
+                    p->setValueNotifyingHost (p->convertTo0to1 ((float) typeIndex));
+            }
+            else if (result >= 200 && result < 300) // Slope
+            {
+                int slopeIndex = result - 200;
+                if (auto* p = apvts2.getParameter (ParamIDs::bandParam (band, ParamIDs::kSlope)))
+                    p->setValueNotifyingHost (p->convertTo0to1 ((float) slopeIndex));
+            }
+            else if (result >= 300 && result < 400) // Stereo
+            {
+                int stereoIndex = result - 300;
+                if (auto* p = apvts2.getParameter (ParamIDs::bandParam (band, ParamIDs::kStereo)))
+                    p->setValueNotifyingHost (p->convertTo0to1 ((float) stereoIndex));
+            }
+
+            repaint();
+        });
+}
+
+void EqCurveDisplay::showEmptySpaceContextMenu (float freq, float gain)
+{
+    juce::PopupMenu menu;
+    menu.addItem (1, "Add Band Here");
+
+    menu.showMenuAsync (juce::PopupMenu::Options(),
+        [this, freq, gain] (int result)
+        {
+            if (result == 1)
+            {
+                activateBandAt (freq, gain);
+                if (onBandSelected)
+                    onBandSelected (selectedBand);
+                repaint();
+            }
+        });
 }

@@ -5,6 +5,7 @@
 #include "../../utils/Constants.h"
 #include "../../utils/MathUtils.h"
 #include "../../dsp/FilterTypes.h"
+#include "../../dsp/SVFFilter.h"
 #include "../../analyzer/SpectrumAnalyzer.h"
 #include "../LookAndFeel/ColourPalette.h"
 
@@ -27,23 +28,39 @@ public:
     void mouseDoubleClick (const juce::MouseEvent& e) override;
     void mouseWheelMove (const juce::MouseEvent& e,
                          const juce::MouseWheelDetails& wheel) override;
+    void mouseExit (const juce::MouseEvent& e) override;
 
     int getSelectedBand() const { return selectedBand; }
+    void setAnalyzerFrozen (bool frozen) { analyzerFrozen = frozen; }
+    bool isAnalyzerFrozen() const { return analyzerFrozen; }
 
-    // Callback when band selection changes (for BandControlPanel)
+    // Callback when band selection changes
     std::function<void (int)> onBandSelected;
 
 private:
     AdvancedEQProcessor& processor;
 
-    // Display bounds (gain range in dB)
+    // Display range
+    enum DisplayRange { dB3 = 0, dB6, dB12, dB30 };
+    DisplayRange currentRange = dB30;
     float displayMinDB = -30.0f;
     float displayMaxDB = 30.0f;
+    void setDisplayRange (DisplayRange range);
+    float getGridStep() const;
+    void drawRangeButtons (juce::Graphics& g);
+    juce::Rectangle<float> getRangeButtonRect (int index) const;
 
     // Interaction state
     int selectedBand = -1;
     int hoveredBand = -1;
     bool isDragging = false;
+
+    // Hover preview
+    bool showPreview = false;
+    float previewMouseX = 0.0f;
+    float previewMouseY = 0.0f;
+    SVFFilter previewFilter;
+    void drawPreviewCurve (juce::Graphics& g);
 
     // Pre-computed frequency points for curve rendering
     std::array<double, Constants::kCurveResolution> frequencyPoints {};
@@ -70,12 +87,15 @@ private:
     int findBandAtPosition (juce::Point<float> pos) const;
     int findFirstInactiveBand() const;
     void activateBandAt (float freq, float gain);
+    void showBandContextMenu (int band);
+    void showEmptySpaceContextMenu (float freq, float gain);
 
     void updateCurves();
 
     // Spectrum analyzers (pre and post EQ)
     SpectrumAnalyzer spectrumAnalyzerPre;
     SpectrumAnalyzer spectrumAnalyzerPost;
+    bool analyzerFrozen = false;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (EqCurveDisplay)
 };

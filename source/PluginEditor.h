@@ -2,7 +2,8 @@
 
 #include "PluginProcessor.h"
 #include "ui/components/EqCurveDisplay.h"
-#include "ui/components/BandControlPanel.h"
+#include "ui/components/BottomControlStrip.h"
+#include "ui/components/HeaderToolbar.h"
 #include "ui/LookAndFeel/AdvancedEqLookAndFeel.h"
 #include <juce_gui_extra/juce_gui_extra.h>
 #include <juce_opengl/juce_opengl.h>
@@ -17,14 +18,12 @@ public:
     void resized() override;
 
 private:
-    AdvancedEQProcessor& processorRef;
     AdvancedEqLookAndFeel lookAndFeel;
 
     // Main components
+    HeaderToolbar headerToolbar;
     EqCurveDisplay curveDisplay;
-    BandControlPanel bandControlPanel;
-
-    void updateBandControlPanelPosition();
+    BottomControlStrip controlStrip;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AdvancedEQEditor)
 };
