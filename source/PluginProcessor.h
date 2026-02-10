@@ -5,6 +5,7 @@
 #include "dsp/ProcessingChain.h"
 #include "analyzer/FFTProcessor.h"
 #include "parameters/BandParameterAttachment.h"
+#include "presets/PresetManager.h"
 #include "utils/Constants.h"
 
 class AdvancedEQProcessor : public juce::AudioProcessor
@@ -41,9 +42,11 @@ public:
 
     FFTProcessor& getFFTProcessorPre()  { return fftProcessorPre; }
     FFTProcessor& getFFTProcessorPost() { return fftProcessorPost; }
+    PresetManager& getPresetManager()   { return presetManager; }
 
 private:
     juce::AudioProcessorValueTreeState apvts;
+    PresetManager presetManager;
     ProcessingChain processingChain;
     std::array<BandParameterAttachment, Constants::kMaxBands> bandAttachments;
 

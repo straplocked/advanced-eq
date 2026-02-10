@@ -7,7 +7,8 @@ AdvancedEQProcessor::AdvancedEQProcessor()
     : AudioProcessor (BusesProperties()
                       .withInput  ("Input",  juce::AudioChannelSet::stereo(), true)
                       .withOutput ("Output", juce::AudioChannelSet::stereo(), true)),
-      apvts (*this, nullptr, "AdvancedEQState", ParameterLayout::createLayout())
+      apvts (*this, nullptr, "AdvancedEQState", ParameterLayout::createLayout()),
+      presetManager (apvts)
 {
     // Initialize band parameter attachments
     for (int i = 0; i < Constants::kMaxBands; ++i)
