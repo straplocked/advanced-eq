@@ -34,6 +34,12 @@ HeaderToolbar::HeaderToolbar (AdvancedEQProcessor& p)
 
     // --- Right-side controls ---
 
+    analogButton.setClickingTogglesState (true);
+    analogButton.setColour (juce::TextButton::buttonOnColourId, ColourPalette::analogAccent().withAlpha (0.3f));
+    addAndMakeVisible (analogButton);
+    analogAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (
+        apvts, ParamIDs::kAnalogMode, analogButton);
+
     analyzerButton.setClickingTogglesState (true);
     analyzerButton.setColour (juce::TextButton::buttonOnColourId, ColourPalette::compositeCurve().withAlpha (0.3f));
     addAndMakeVisible (analyzerButton);
@@ -71,6 +77,7 @@ HeaderToolbar::HeaderToolbar (AdvancedEQProcessor& p)
 HeaderToolbar::~HeaderToolbar()
 {
     presetManager.removeListener (this);
+    analogAttachment.reset();
     analyzerAttachment.reset();
     processModeAttachment.reset();
     outputGainAttachment.reset();
@@ -134,6 +141,12 @@ void HeaderToolbar::resized()
     // Analyzer on/off button
     auto analyzerArea = rightBounds.removeFromRight (62);
     analyzerButton.setBounds (analyzerArea.withHeight (22).withCentre (analyzerArea.getCentre()));
+
+    rightBounds.removeFromRight (4);
+
+    // Analog mode button
+    auto analogArea = rightBounds.removeFromRight (52);
+    analogButton.setBounds (analogArea.withHeight (22).withCentre (analogArea.getCentre()));
 
     // Preset controls in the remaining center space
     auto presetBounds = rightBounds;

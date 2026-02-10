@@ -72,4 +72,7 @@ namespace ColourPalette
     // Spectrum
     inline juce::Colour spectrumPre()      { return juce::Colour (0x40888899); }
     inline juce::Colour spectrumPost()     { return juce::Colour (0x606bcfff); }
+
+    // Analog mode
+    inline juce::Colour analogAccent()     { return juce::Colour (0xffcc8844); }
 }

@@ -34,6 +34,7 @@ public:
     void reset();
 
     void updateParameters (const BandParameters& params);
+    void setAnalogMode (bool enabled);
 
     // Process stereo buffer (both L and R channels)
     void process (juce::AudioBuffer<float>& buffer, int numSamples);
@@ -67,4 +68,7 @@ private:
 
     double sampleRate = 44100.0;
     bool needsUpdate = true;
+    bool analogMode = false;
+
+    static float saturate (float x);
 };

@@ -1,4 +1,5 @@
 #include "EqBand.h"
+#include <cmath>
 
 void EqBand::prepare (double sr, int /*maxBlockSize*/)
 {
@@ -15,6 +16,20 @@ void EqBand::reset()
 {
     filterL.reset();
     filterR.reset();
+}
+
+void EqBand::setAnalogMode (bool enabled)
+{
+    analogMode = enabled;
+}
+
+float EqBand::saturate (float x)
+{
+    constexpr float drive = 1.2f;
+    constexpr float asymmetry = 0.05f;
+    constexpr float normFactor = 1.0f / 0.8336546f; // 1/tanh(1.2)
+    float shaped = x + asymmetry * x * x;
+    return std::tanh (shaped * drive) * normFactor;
 }
 
 void EqBand::updateParameters (const BandParameters& params)
@@ -40,6 +55,10 @@ void EqBand::updateParameters (const BandParameters& params)
     float gain = smoothedGain.getCurrentValue();
     float q = smoothedQ.getCurrentValue();
 
+    // Proportional Q: bell filters tighten as gain increases (analog behavior)
+    if (analogMode && params.type == FilterType::Bell)
+        q *= (1.0f + 0.4f * std::abs (gain) / 30.0f);
+
     filterL.setParameters (params.type, freq, q, gain, params.slopeDBPerOct);
     filterR.setParameters (params.type, freq, q, gain, params.slopeDBPerOct);
 
@@ -60,6 +79,9 @@ void EqBand::process (juce::AudioBuffer<float>& buffer, int numSamples)
             float freq = smoothedFreq.getNextValue();
             float gain = smoothedGain.getNextValue();
             float q = smoothedQ.getNextValue();
+
+            if (analogMode && filterType == FilterType::Bell)
+                q *= (1.0f + 0.4f * std::abs (gain) / 30.0f);
 
             filterL.setParameters (filterType, freq, q, gain, currentParams.slopeDBPerOct);
             filterR.setParameters (filterType, freq, q, gain, currentParams.slopeDBPerOct);
@@ -84,6 +106,17 @@ void EqBand::process (juce::AudioBuffer<float>& buffer, int numSamples)
         if (buffer.getNumChannels() > 1)
             filterR.process (buffer.getWritePointer (1), numSamples);
     }
+
+    // Per-band analog saturation
+    if (analogMode)
+    {
+        for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
+        {
+            float* data = buffer.getWritePointer (ch);
+            for (int i = 0; i < numSamples; ++i)
+                data[i] = saturate (data[i]);
+        }
+    }
 }
 
 void EqBand::processSingleChannel (float* channelData, int numSamples)
@@ -99,6 +132,9 @@ void EqBand::processSingleChannel (float* channelData, int numSamples)
             float gain = smoothedGain.getNextValue();
             float q = smoothedQ.getNextValue();
 
+            if (analogMode && filterType == FilterType::Bell)
+                q *= (1.0f + 0.4f * std::abs (gain) / 30.0f);
+
             filterL.setParameters (filterType, freq, q, gain, currentParams.slopeDBPerOct);
 
             channelData[i] = filterL.processSample (channelData[i]);
@@ -107,6 +143,13 @@ void EqBand::processSingleChannel (float* channelData, int numSamples)
     else
     {
         filterL.process (channelData, numSamples);
+    }
+
+    // Per-band analog saturation
+    if (analogMode)
+    {
+        for (int i = 0; i < numSamples; ++i)
+            channelData[i] = saturate (channelData[i]);
     }
 }
 

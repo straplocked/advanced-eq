@@ -18,6 +18,7 @@ AdvancedEQProcessor::AdvancedEQProcessor()
     rawOutputGain  = apvts.getRawParameterValue (ParamIDs::kOutputGain);
     rawAnalyzerOn  = apvts.getRawParameterValue (ParamIDs::kAnalyzerOn);
     rawAnalyzerPre = apvts.getRawParameterValue (ParamIDs::kAnalyzerPre);
+    rawAnalogMode  = apvts.getRawParameterValue (ParamIDs::kAnalogMode);
 }
 
 AdvancedEQProcessor::~AdvancedEQProcessor() = default;
@@ -72,6 +73,7 @@ void AdvancedEQProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     }
 
     processingChain.setOutputGain (rawOutputGain->load());
+    processingChain.setAnalogMode (rawAnalogMode->load() >= 0.5f);
 
     // Capture pre-EQ spectrum
     bool analyzerOn = rawAnalyzerOn->load() >= 0.5f;

@@ -58,6 +58,7 @@ private:
     std::atomic<float>* rawOutputGain = nullptr;
     std::atomic<float>* rawAnalyzerOn = nullptr;
     std::atomic<float>* rawAnalyzerPre = nullptr;
+    std::atomic<float>* rawAnalogMode = nullptr;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AdvancedEQProcessor)
 };

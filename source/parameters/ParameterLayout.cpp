@@ -166,6 +166,12 @@ juce::AudioProcessorValueTreeState::ParameterLayout createLayout()
         juce::StringArray { "Low", "Normal", "High", "Max" },
         2)); // Default: High
 
+    // Analog Mode
+    layout.add (std::make_unique<juce::AudioParameterBool> (
+        juce::ParameterID { ParamIDs::kAnalogMode, 1 },
+        "Analog Mode",
+        false));
+
     return layout;
 }
 

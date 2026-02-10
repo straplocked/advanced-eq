@@ -79,6 +79,45 @@ void ProcessingChain::process (juce::AudioBuffer<float>& buffer)
         }
     }
 
+    // Analog mode: crosstalk + noise floor
+    if (analogMode && isStereo)
+    {
+        float* dataL = buffer.getWritePointer (0);
+        float* dataR = buffer.getWritePointer (1);
+
+        constexpr float crosstalk = 0.002f; // ~-54 dB channel bleed
+        constexpr float noiseLevel = 1e-5f; // ~-100 dBFS
+
+        for (int i = 0; i < numSamples; ++i)
+        {
+            // Channel crosstalk
+            float l = dataL[i];
+            float r = dataR[i];
+            dataL[i] = l + crosstalk * r;
+            dataR[i] = r + crosstalk * l;
+
+            // Pink-ish noise floor (one-pole filtered white noise per channel)
+            float whiteL = noiseRng.nextFloat() * 2.0f - 1.0f;
+            float whiteR = noiseRng.nextFloat() * 2.0f - 1.0f;
+            pinkState[0] = 0.99f * pinkState[0] + 0.01f * whiteL;
+            pinkState[1] = 0.99f * pinkState[1] + 0.01f * whiteR;
+            dataL[i] += pinkState[0] * noiseLevel;
+            dataR[i] += pinkState[1] * noiseLevel;
+        }
+    }
+    else if (analogMode && ! isStereo)
+    {
+        float* data = buffer.getWritePointer (0);
+        constexpr float noiseLevel = 1e-5f;
+
+        for (int i = 0; i < numSamples; ++i)
+        {
+            float white = noiseRng.nextFloat() * 2.0f - 1.0f;
+            pinkState[0] = 0.99f * pinkState[0] + 0.01f * white;
+            data[i] += pinkState[0] * noiseLevel;
+        }
+    }
+
     // Apply output gain
     if (outputGain.isSmoothing())
     {
@@ -106,6 +145,13 @@ void ProcessingChain::updateBand (int bandIndex, const BandParameters& params)
 void ProcessingChain::setOutputGain (float gainDB)
 {
     outputGain.setTargetValue (MathUtils::dbToGain (gainDB));
+}
+
+void ProcessingChain::setAnalogMode (bool enabled)
+{
+    analogMode = enabled;
+    for (auto& band : bands)
+        band.setAnalogMode (enabled);
 }
 
 void ProcessingChain::computeCompositeMagnitude (const double* frequencies,

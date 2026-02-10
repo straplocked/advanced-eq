@@ -31,6 +31,7 @@ private:
     juce::TextButton saveButton { "Save" };
 
     // Right-side controls
+    juce::TextButton analogButton { "Analog" };
     juce::TextButton analyzerButton { "Analyzer" };
     juce::TextButton freezeButton { "Freeze" };
     juce::ComboBox processModeSelector;
@@ -43,6 +44,7 @@ private:
     private:
 
     // Attachments
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> analogAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> analyzerAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> processModeAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> outputGainAttachment;

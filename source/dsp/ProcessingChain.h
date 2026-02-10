@@ -6,6 +6,7 @@
 #include <juce_audio_basics/juce_audio_basics.h>
 #include <juce_dsp/juce_dsp.h>
 #include <array>
+#include <juce_core/juce_core.h>
 
 class ProcessingChain
 {
@@ -21,6 +22,7 @@ public:
     // Parameter updates
     void updateBand (int bandIndex, const BandParameters& params);
     void setOutputGain (float gainDB);
+    void setAnalogMode (bool enabled);
 
     // For UI: compute magnitude responses
     void computeCompositeMagnitude (const double* frequencies,
@@ -38,4 +40,9 @@ private:
 
     double sampleRate = 44100.0;
     int maxBlockSize = 512;
+
+    // Analog mode state
+    bool analogMode = false;
+    juce::Random noiseRng;
+    float pinkState[2] = { 0.0f, 0.0f };
 };

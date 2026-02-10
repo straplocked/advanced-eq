@@ -34,6 +34,7 @@ namespace ParamIDs
     constexpr const char* kAnalyzerPre = "analyzer_pre";
     constexpr const char* kAnalyzerRes = "analyzer_res";
     constexpr const char* kAnalyzerSpd = "analyzer_speed";
+    constexpr const char* kAnalogMode  = "analog_mode";
 
     // Filter type names (matching FilterType enum order)
     inline juce::StringArray getFilterTypeNames()
