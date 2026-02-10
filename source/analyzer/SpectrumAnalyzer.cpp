@@ -99,7 +99,9 @@ bool SpectrumAnalyzer::update (FFTProcessor& fftProcessor,
 
 float SpectrumAnalyzer::spectrumDBtoY (float dB, float height) const
 {
-    // Same pixels-per-dB as the EQ display (60 dB range over full height).
-    // 0 dBFS aligns with the EQ curve's 0 dB gain line (center of display).
-    return height * 0.5f - dB * (height / 60.0f);
+    // Map the analyzer's full dB range to the display height.
+    // +6 dBFS at top, -100 dBFS at bottom (106 dB visible range).
+    float normalized = (dB - Constants::kAnalyzerMinDB)
+                     / (Constants::kAnalyzerMaxDB - Constants::kAnalyzerMinDB);
+    return height * (1.0f - normalized);
 }
