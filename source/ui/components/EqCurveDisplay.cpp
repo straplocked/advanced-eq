@@ -12,12 +12,29 @@ EqCurveDisplay::EqCurveDisplay (AdvancedEQProcessor& p)
         frequencyPoints[(size_t) i] = (double) MathUtils::normalizedToFrequency (normalized);
     }
 
+    spectrumAnalyzerPre.prepare (Constants::kCurveResolution);
+    spectrumAnalyzerPost.prepare (Constants::kCurveResolution);
+
     startTimerHz (Constants::kUITimerHz);
 }
 
 void EqCurveDisplay::timerCallback()
 {
     updateCurves();
+
+    // Update spectrum analyzers
+    auto* analyzerOnParam = processor.getAPVTS().getRawParameterValue (ParamIDs::kAnalyzerOn);
+    if (analyzerOnParam != nullptr && analyzerOnParam->load() >= 0.5f)
+    {
+        float w = (float) getWidth();
+        float h = (float) getHeight();
+        if (w > 0 && h > 0)
+        {
+            spectrumAnalyzerPre.update (processor.getFFTProcessorPre(), w, h);
+            spectrumAnalyzerPost.update (processor.getFFTProcessorPost(), w, h);
+        }
+    }
+
     repaint();
 }
 
@@ -68,6 +85,20 @@ void EqCurveDisplay::paint (juce::Graphics& g)
     g.fillAll (ColourPalette::curveArea());
 
     drawGrid (g);
+
+    // Spectrum analyzer (drawn behind EQ curves)
+    auto* analyzerOnParam = processor.getAPVTS().getRawParameterValue (ParamIDs::kAnalyzerOn);
+    if (analyzerOnParam != nullptr && analyzerOnParam->load() >= 0.5f)
+    {
+        auto* analyzerPreParam = processor.getAPVTS().getRawParameterValue (ParamIDs::kAnalyzerPre);
+        bool showPre = (analyzerPreParam != nullptr && analyzerPreParam->load() >= 0.5f);
+
+        if (showPre)
+            drawSpectrum (g, spectrumAnalyzerPre, ColourPalette::spectrumPre());
+        else
+            drawSpectrum (g, spectrumAnalyzerPost, ColourPalette::spectrumPost());
+    }
+
     drawBandCurves (g);
     drawCompositeCurve (g);
     drawBandHandles (g);
@@ -247,6 +278,25 @@ void EqCurveDisplay::drawBandHandles (juce::Graphics& g)
                     (int) (x - 6), (int) (y - 5), 12, 10,
                     juce::Justification::centred, false);
     }
+}
+
+void EqCurveDisplay::drawSpectrum (juce::Graphics& g,
+                                    const SpectrumAnalyzer& analyzer,
+                                    juce::Colour colour)
+{
+    const auto& fillPath = analyzer.getFillPath();
+    const auto& strokePath = analyzer.getPath();
+
+    if (fillPath.isEmpty())
+        return;
+
+    // Filled area
+    g.setColour (colour);
+    g.fillPath (fillPath);
+
+    // Top edge stroke (slightly brighter)
+    g.setColour (colour.withMultipliedAlpha (1.5f));
+    g.strokePath (strokePath, juce::PathStrokeType (1.0f));
 }
 
 void EqCurveDisplay::drawTooltip (juce::Graphics& g)

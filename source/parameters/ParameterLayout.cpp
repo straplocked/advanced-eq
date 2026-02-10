@@ -152,6 +152,20 @@ juce::AudioProcessorValueTreeState::ParameterLayout createLayout()
         "Analyzer Pre",
         false));
 
+    // Analyzer Speed (smoothing: 0.0 = no smoothing, 1.0 = max smoothing)
+    layout.add (std::make_unique<juce::AudioParameterFloat> (
+        juce::ParameterID { ParamIDs::kAnalyzerSpd, 1 },
+        "Analyzer Speed",
+        juce::NormalisableRange<float> (0.0f, 1.0f, 0.01f),
+        Constants::kDefaultAnalyzerSmoothing));
+
+    // Analyzer Resolution (reserved for future FFT size switching)
+    layout.add (std::make_unique<juce::AudioParameterChoice> (
+        juce::ParameterID { ParamIDs::kAnalyzerRes, 1 },
+        "Analyzer Resolution",
+        juce::StringArray { "Low", "Normal", "High", "Max" },
+        2)); // Default: High
+
     return layout;
 }
 

@@ -3,6 +3,7 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_dsp/juce_dsp.h>
 #include "dsp/ProcessingChain.h"
+#include "analyzer/FFTProcessor.h"
 #include "parameters/BandParameterAttachment.h"
 #include "utils/Constants.h"
 
@@ -38,13 +39,22 @@ public:
     juce::AudioProcessorValueTreeState& getAPVTS() { return apvts; }
     ProcessingChain& getProcessingChain() { return processingChain; }
 
+    FFTProcessor& getFFTProcessorPre()  { return fftProcessorPre; }
+    FFTProcessor& getFFTProcessorPost() { return fftProcessorPost; }
+
 private:
     juce::AudioProcessorValueTreeState apvts;
     ProcessingChain processingChain;
     std::array<BandParameterAttachment, Constants::kMaxBands> bandAttachments;
 
+    // Spectrum analyzer FFT engines (pre and post EQ)
+    FFTProcessor fftProcessorPre;
+    FFTProcessor fftProcessorPost;
+
     // Cached raw parameter pointers for global params
     std::atomic<float>* rawOutputGain = nullptr;
+    std::atomic<float>* rawAnalyzerOn = nullptr;
+    std::atomic<float>* rawAnalyzerPre = nullptr;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AdvancedEQProcessor)
 };

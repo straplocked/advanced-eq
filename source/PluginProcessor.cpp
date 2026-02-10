@@ -14,7 +14,9 @@ AdvancedEQProcessor::AdvancedEQProcessor()
         bandAttachments[(size_t) i].init (i, apvts);
 
     // Cache global parameter pointers
-    rawOutputGain = apvts.getRawParameterValue (ParamIDs::kOutputGain);
+    rawOutputGain  = apvts.getRawParameterValue (ParamIDs::kOutputGain);
+    rawAnalyzerOn  = apvts.getRawParameterValue (ParamIDs::kAnalyzerOn);
+    rawAnalyzerPre = apvts.getRawParameterValue (ParamIDs::kAnalyzerPre);
 }
 
 AdvancedEQProcessor::~AdvancedEQProcessor() = default;
@@ -27,11 +29,15 @@ const juce::String AdvancedEQProcessor::getName() const
 void AdvancedEQProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
     processingChain.prepare (sampleRate, samplesPerBlock, getTotalNumOutputChannels());
+    fftProcessorPre.prepare (sampleRate, samplesPerBlock);
+    fftProcessorPost.prepare (sampleRate, samplesPerBlock);
 }
 
 void AdvancedEQProcessor::releaseResources()
 {
     processingChain.reset();
+    fftProcessorPre.reset();
+    fftProcessorPost.reset();
 }
 
 bool AdvancedEQProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
@@ -66,8 +72,17 @@ void AdvancedEQProcessor::processBlock (juce::AudioBuffer<float>& buffer,
 
     processingChain.setOutputGain (rawOutputGain->load());
 
+    // Capture pre-EQ spectrum
+    bool analyzerOn = rawAnalyzerOn->load() >= 0.5f;
+    if (analyzerOn)
+        fftProcessorPre.pushSamples (buffer, buffer.getNumSamples());
+
     // Process audio through EQ
     processingChain.process (buffer);
+
+    // Capture post-EQ spectrum
+    if (analyzerOn)
+        fftProcessorPost.pushSamples (buffer, buffer.getNumSamples());
 }
 
 juce::AudioProcessorEditor* AdvancedEQProcessor::createEditor()

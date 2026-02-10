@@ -5,6 +5,7 @@
 #include "../../utils/Constants.h"
 #include "../../utils/MathUtils.h"
 #include "../../dsp/FilterTypes.h"
+#include "../../analyzer/SpectrumAnalyzer.h"
 #include "../LookAndFeel/ColourPalette.h"
 
 class EqCurveDisplay : public juce::Component,
@@ -62,6 +63,7 @@ private:
     void drawBandCurves (juce::Graphics& g);
     void drawCompositeCurve (juce::Graphics& g);
     void drawBandHandles (juce::Graphics& g);
+    void drawSpectrum (juce::Graphics& g, const SpectrumAnalyzer& analyzer, juce::Colour colour);
     void drawTooltip (juce::Graphics& g);
 
     // Interaction helpers
@@ -70,6 +72,10 @@ private:
     void activateBandAt (float freq, float gain);
 
     void updateCurves();
+
+    // Spectrum analyzers (pre and post EQ)
+    SpectrumAnalyzer spectrumAnalyzerPre;
+    SpectrumAnalyzer spectrumAnalyzerPost;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (EqCurveDisplay)
 };
