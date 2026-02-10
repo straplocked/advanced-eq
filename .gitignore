@@ -19,6 +19,12 @@ Thumbs.db
 *.swp
 *~
 
+# Local settings
+settings.local.json
+
+# Claude Code
+.claude/
+
 # JUCE build artifacts
 Builds/
 JuceLibraryCode/
