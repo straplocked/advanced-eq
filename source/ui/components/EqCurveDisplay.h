@@ -4,6 +4,7 @@
 #include "../../PluginProcessor.h"
 #include "../../utils/Constants.h"
 #include "../../utils/MathUtils.h"
+#include "../../dsp/FilterTypes.h"
 #include "../LookAndFeel/ColourPalette.h"
 
 class EqCurveDisplay : public juce::Component,
@@ -27,6 +28,9 @@ public:
                          const juce::MouseWheelDetails& wheel) override;
 
     int getSelectedBand() const { return selectedBand; }
+
+    // Callback when band selection changes (for BandControlPanel)
+    std::function<void (int)> onBandSelected;
 
 private:
     AdvancedEQProcessor& processor;

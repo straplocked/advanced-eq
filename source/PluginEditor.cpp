@@ -1,15 +1,26 @@
 #include "PluginEditor.h"
 #include "utils/Constants.h"
+#include "utils/MathUtils.h"
+#include "parameters/ParameterIDs.h"
 #include "ui/LookAndFeel/ColourPalette.h"
 
 AdvancedEQEditor::AdvancedEQEditor (AdvancedEQProcessor& p)
     : AudioProcessorEditor (&p),
       processorRef (p),
-      curveDisplay (p)
+      curveDisplay (p),
+      bandControlPanel (p)
 {
     setLookAndFeel (&lookAndFeel);
 
     addAndMakeVisible (curveDisplay);
+    addAndMakeVisible (bandControlPanel);
+
+    // Wire band selection callback to show/hide/reposition control panel
+    curveDisplay.onBandSelected = [this] (int band)
+    {
+        bandControlPanel.setSelectedBand (band);
+        updateBandControlPanelPosition();
+    };
 
     setSize (Constants::kDefaultEditorWidth, Constants::kDefaultEditorHeight);
     setResizable (true, true);
@@ -53,4 +64,28 @@ void AdvancedEQEditor::resized()
     bounds.removeFromBottom (36); // Bottom bar
 
     curveDisplay.setBounds (bounds);
+    updateBandControlPanelPosition();
+}
+
+void AdvancedEQEditor::updateBandControlPanelPosition()
+{
+    int band = bandControlPanel.getSelectedBand();
+    if (band < 0)
+        return;
+
+    auto& apvts = processorRef.getAPVTS();
+    auto* freqParam = apvts.getRawParameterValue (
+        ParamIDs::bandParam (band, ParamIDs::kFrequency));
+    auto* gainParam = apvts.getRawParameterValue (
+        ParamIDs::bandParam (band, ParamIDs::kGain));
+
+    float freq = freqParam->load();
+    float gain = gainParam->load();
+
+    // Map to pixel coordinates within the curve display
+    auto curveBounds = curveDisplay.getBounds();
+    float x = MathUtils::frequencyToX (freq, (float) curveBounds.getWidth()) + curveBounds.getX();
+    float y = MathUtils::gainToY (gain, (float) curveBounds.getHeight(), -30.0f, 30.0f) + curveBounds.getY();
+
+    bandControlPanel.positionNear (x, y, curveBounds);
 }

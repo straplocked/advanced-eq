@@ -263,13 +263,32 @@ void EqCurveDisplay::drawTooltip (juce::Graphics& g)
         ParamIDs::bandParam (band, ParamIDs::kGain));
     auto* qParam = apvts.getRawParameterValue (
         ParamIDs::bandParam (band, ParamIDs::kQ));
+    auto* typeParam = apvts.getRawParameterValue (
+        ParamIDs::bandParam (band, ParamIDs::kType));
+    auto* slopeParam = apvts.getRawParameterValue (
+        ParamIDs::bandParam (band, ParamIDs::kSlope));
 
     float freq = freqParam->load();
     float gain = gainParam->load();
     float q = qParam->load();
+    int typeIndex = (int) typeParam->load();
+    int slopeIndex = (int) slopeParam->load();
 
-    juce::String text = FrequencyUtils::formatFrequency (freq) + "  "
+    auto filterType = static_cast<FilterType> (typeIndex);
+    auto typeName = ParamIDs::getFilterTypeNames()[typeIndex];
+
+    // Show slope only for types where it applies
+    bool showSlope = (filterType == FilterType::LowPass
+                   || filterType == FilterType::HighPass
+                   || filterType == FilterType::LowShelf
+                   || filterType == FilterType::HighShelf);
+
+    juce::String text = typeName + "  "
+                      + FrequencyUtils::formatFrequency (freq) + "  "
                       + juce::String (gain, 1) + " dB  Q " + juce::String (q, 2);
+
+    if (showSlope)
+        text += "  " + ParamIDs::getSlopeNames()[slopeIndex];
 
     float x = frequencyToX (freq);
     float y = gainToY (gain) - 22.0f;
@@ -384,6 +403,9 @@ void EqCurveDisplay::mouseDown (const juce::MouseEvent& e)
         isDragging = true;
     }
 
+    if (onBandSelected)
+        onBandSelected (selectedBand);
+
     repaint();
 }
 
@@ -432,7 +454,11 @@ void EqCurveDisplay::mouseDoubleClick (const juce::MouseEvent& e)
             param->setValueNotifyingHost (0.0f);
 
         if (selectedBand == band)
+        {
             selectedBand = -1;
+            if (onBandSelected)
+                onBandSelected (selectedBand);
+        }
         if (hoveredBand == band)
             hoveredBand = -1;
 

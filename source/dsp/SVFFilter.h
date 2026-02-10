@@ -25,6 +25,10 @@ public:
     // Get magnitude in dB at a frequency
     double getMagnitudeAtFrequency (double freq) const;
 
+    // First-order mode (for 6 dB/oct slopes and odd-order Butterworth)
+    void setFirstOrder (bool firstOrder);
+    bool getIsFirstOrder() const { return isFirstOrder; }
+
 private:
     void updateCoefficients();
 
@@ -37,6 +41,7 @@ private:
     double frequency = 1000.0;
     double q = 1.0;
     double gain = 0.0; // dB
+    bool isFirstOrder = false;
 
     // Computed coefficients
     double g = 0.0;   // tan(pi * freq / sampleRate)

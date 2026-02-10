@@ -19,10 +19,7 @@ void CascadedFilter::reset()
 void CascadedFilter::setParameters (FilterType type, double freq, double Q,
                                      double gainDB, int slopeDBPerOct)
 {
-    numActiveSections = slopeToSections (slopeDBPerOct);
-
-    if (numActiveSections <= 0)
-        numActiveSections = 1;
+    auto slopeInfo = getSlopeInfo (slopeDBPerOct);
 
     switch (type)
     {
@@ -32,9 +29,9 @@ void CascadedFilter::setParameters (FilterType type, double freq, double Q,
         case FilterType::TiltShelf:
         case FilterType::FlatTilt:
         {
-            // For bell/notch/bandpass: use single section regardless of slope
-            // (slope primarily affects cut/shelf filters)
+            // These types always use a single section (slope doesn't apply)
             numActiveSections = 1;
+            sections[0].setFirstOrder (false);
             sections[0].setParameters (type, freq, Q, gainDB);
             break;
         }
@@ -42,16 +39,19 @@ void CascadedFilter::setParameters (FilterType type, double freq, double Q,
         case FilterType::LowShelf:
         case FilterType::HighShelf:
         {
-            if (numActiveSections == 1)
+            numActiveSections = slopeInfo.numSections;
+            if (numActiveSections <= 0)
+                numActiveSections = 1;
+
+            // Distribute gain across sections for steeper shelves
+            double perSectionGain = gainDB / numActiveSections;
+
+            for (int i = 0; i < numActiveSections; ++i)
             {
-                sections[0].setParameters (type, freq, Q, gainDB);
-            }
-            else
-            {
-                // Distribute gain across sections for steeper shelves
-                double perSectionGain = gainDB / numActiveSections;
-                for (int i = 0; i < numActiveSections; ++i)
-                    sections[i].setParameters (type, freq, Q, perSectionGain);
+                bool isLast = (i == numActiveSections - 1);
+                bool useFirstOrder = isLast && slopeInfo.lastIsFirstOrder;
+                sections[i].setFirstOrder (useFirstOrder);
+                sections[i].setParameters (type, freq, Q, perSectionGain);
             }
             break;
         }
@@ -59,25 +59,34 @@ void CascadedFilter::setParameters (FilterType type, double freq, double Q,
         case FilterType::HighPass:
         case FilterType::LowPass:
         {
-            if (numActiveSections == 1)
+            numActiveSections = slopeInfo.numSections;
+            if (numActiveSections <= 0)
+                numActiveSections = 1;
+
+            // Total filter order
+            int order = (slopeDBPerOct == 0) ? 16 : slopeDBPerOct / 6;
+
+            // Number of second-order sections (excluding first-order if present)
+            int numSecondOrder = slopeInfo.lastIsFirstOrder
+                                     ? numActiveSections - 1
+                                     : numActiveSections;
+
+            // Butterworth Q values for each second-order section
+            // Q_k = 1 / (2 * cos(pi * (2k + 1) / (2 * N))) for k = 0..numSecondOrder-1
+            for (int i = 0; i < numSecondOrder; ++i)
             {
-                // Single second-order section (12 dB/oct)
-                // For 6 dB/oct, we use a low Q to approximate first-order
-                double actualQ = (slopeDBPerOct <= 6) ? 0.5 : Q;
-                sections[0].setParameters (type, freq, actualQ, 0.0);
+                double angle = kPi * (2.0 * i + 1.0) / (2.0 * order);
+                double butterworthQ = 1.0 / (2.0 * std::cos (angle));
+                sections[i].setFirstOrder (false);
+                sections[i].setParameters (type, freq, butterworthQ, 0.0);
             }
-            else
+
+            // If odd order, the last section is a first-order filter (real pole)
+            if (slopeInfo.lastIsFirstOrder)
             {
-                // Butterworth cascade: each section gets a specific Q
-                // based on Butterworth pole placement
-                int order = numActiveSections * 2;
-                for (int i = 0; i < numActiveSections; ++i)
-                {
-                    // Butterworth Q for each second-order section
-                    double angle = kPi * (2.0 * i + 1.0) / (2.0 * order);
-                    double butterworthQ = 1.0 / (2.0 * std::cos (angle));
-                    sections[i].setParameters (type, freq, butterworthQ, 0.0);
-                }
+                int lastIdx = numActiveSections - 1;
+                sections[lastIdx].setFirstOrder (true);
+                sections[lastIdx].setParameters (type, freq, 0.707, 0.0);
             }
             break;
         }

@@ -26,9 +26,67 @@ void SVFFilter::setParameters (FilterType newType, double freq, double Q, double
     updateCoefficients();
 }
 
+void SVFFilter::setFirstOrder (bool firstOrder)
+{
+    if (isFirstOrder != firstOrder)
+    {
+        isFirstOrder = firstOrder;
+        ic1eq = 0.0;
+        ic2eq = 0.0;
+        updateCoefficients();
+    }
+}
+
 void SVFFilter::updateCoefficients()
 {
     double A = std::pow (10.0, gain / 40.0); // sqrt of linear gain
+
+    // --- First-order (one-pole TPT) mode ---
+    if (isFirstOrder)
+    {
+        g = std::tan (kPi * frequency / currentSampleRate);
+        k = 0.0;
+        a1 = 0.0;
+        a2 = 0.0;
+        a3 = 0.0;
+
+        // First-order mix: output = m0 * v0 + m2 * lp
+        // (m1 unused in first-order mode)
+        switch (type)
+        {
+            case FilterType::LowPass:
+                m0 = 0.0; m1 = 0.0; m2 = 1.0;
+                break;
+
+            case FilterType::HighPass:
+                m0 = 1.0; m1 = 0.0; m2 = -1.0;
+                break;
+
+            case FilterType::LowShelf:
+            {
+                double sqrtA = std::sqrt (A);
+                g = std::tan (kPi * frequency / currentSampleRate) * sqrtA;
+                m0 = 1.0; m1 = 0.0; m2 = (A * A - 1.0);
+                break;
+            }
+
+            case FilterType::HighShelf:
+            {
+                double sqrtA = std::sqrt (A);
+                g = std::tan (kPi * frequency / currentSampleRate) / sqrtA;
+                m0 = A * A; m1 = 0.0; m2 = (1.0 - A * A);
+                break;
+            }
+
+            default:
+                // Types that don't support first-order: pass through
+                m0 = 1.0; m1 = 0.0; m2 = 0.0;
+                break;
+        }
+        return;
+    }
+
+    // --- Second-order (standard SVF) mode ---
     g = std::tan (kPi * frequency / currentSampleRate);
     k = 1.0 / q;
 
@@ -43,8 +101,7 @@ void SVFFilter::updateCoefficients()
     switch (type)
     {
         case FilterType::Bell:
-            // Peaking EQ: boost/cut around center frequency
-            k = 1.0 / (q * A);  // Adjusted k for bell
+            k = 1.0 / (q * A);
             a1 = 1.0 / (1.0 + g * (g + k));
             a2 = g * a1;
             a3 = g * a2;
@@ -99,8 +156,7 @@ void SVFFilter::updateCoefficients()
 
         case FilterType::TiltShelf:
         {
-            // Tilt shelf: low shelf at one gain, combined with behaviour
-            // that creates a smooth tilt across the spectrum
+            // Second-order tilt shelf: steep transition at crossover, flat at extremes
             double sqrtA = std::sqrt (A);
             k = 1.0 / q;
             g = std::tan (kPi * frequency / currentSampleRate) / sqrtA;
@@ -115,26 +171,38 @@ void SVFFilter::updateCoefficients()
 
         case FilterType::FlatTilt:
         {
-            // Flat tilt: gentle tilt across entire spectrum
-            // Implemented as a first-order shelf approximation
-            double sqrtA = std::sqrt (A);
-            k = 1.0 / q;
-            g = std::tan (kPi * frequency / currentSampleRate) / sqrtA;
-            a1 = 1.0 / (1.0 + g * (g + k));
-            a2 = g * a1;
-            a3 = g * a2;
+            // Flat tilt: gradual first-order tilt across entire spectrum
+            // Uses first-order mode for a gentle constant-slope response
+            // crossing 0 dB at the specified frequency
+            isFirstOrder = true;
+            g = std::tan (kPi * frequency / currentSampleRate);
+            k = 0.0;
+            a1 = 0.0;
+            a2 = 0.0;
+            a3 = 0.0;
             m0 = 1.0;
-            m1 = k * (A - 1.0);
+            m1 = 0.0;
             m2 = (A * A - 1.0);
-            break;
+            return;
         }
     }
 }
 
 float SVFFilter::processSample (float input)
 {
-    // Cytomic SVF tick
     double v0 = (double) input;
+
+    if (isFirstOrder)
+    {
+        // One-pole TPT tick
+        double v1 = (v0 - ic1eq) * g / (1.0 + g);
+        double lp = v1 + ic1eq;
+        ic1eq = lp + v1;
+
+        return (float) (m0 * v0 + m2 * lp);
+    }
+
+    // Second-order Cytomic SVF tick
     double v3 = v0 - ic2eq;
     double v1 = a1 * ic1eq + a2 * v3;
     double v2 = ic2eq + a2 * ic1eq + a3 * v3;
@@ -153,17 +221,26 @@ void SVFFilter::process (float* buffer, int numSamples)
 
 std::complex<double> SVFFilter::getResponse (double freq) const
 {
-    // SVF output = m0*v0 + m1*v1 + m2*v2
-    // v0 = input, v1 = bandpass, v2 = lowpass
-    // v0 = hp + k*bp + lp (identity), so:
-    // H(z) = m0*(Hhp + k*Hbp + Hlp) + m1*Hbp + m2*Hlp
-    //       = m0*Hhp + (m0*k + m1)*Hbp + (m0 + m2)*Hlp
-
     double w = 2.0 * kPi * freq / currentSampleRate;
     std::complex<double> ejw_inv = std::exp (std::complex<double> (0.0, -w));
+
+    if (isFirstOrder)
+    {
+        // First-order TPT transfer function
+        // H_lp(z) = G * (1 + z^-1) / (1 + c * z^-1)
+        // where G = g/(1+g), c = (g-1)/(g+1)
+        double G = g / (1.0 + g);
+        double c = (g - 1.0) / (g + 1.0);
+
+        std::complex<double> den = 1.0 + c * ejw_inv;
+        std::complex<double> lp = G * (1.0 + ejw_inv) / den;
+
+        return m0 * 1.0 + m2 * lp;
+    }
+
+    // Second-order SVF transfer function
     std::complex<double> ejw_inv2 = ejw_inv * ejw_inv;
 
-    // Equivalent biquad coefficients for the SVF's LP, BP, HP outputs
     double denom = 1.0 + g * (g + k);
     double a1_bq = 2.0 * (g * g - 1.0) / denom;
     double a2_bq = (1.0 - g * k + g * g) / denom;
@@ -174,7 +251,7 @@ std::complex<double> SVFFilter::getResponse (double freq) const
     double g2d = g * g / denom;
     std::complex<double> lpNum = g2d * (1.0 + 2.0 * ejw_inv + ejw_inv2);
 
-    // Bandpass: H_bp = g/D * (1 - z^-2) / commonDen  (scaled by k for unity)
+    // Bandpass: H_bp = g/D * (1 - z^-2) / commonDen
     double gd = g / denom;
     std::complex<double> bpNum = gd * (1.0 - ejw_inv2);
 

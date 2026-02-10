@@ -36,9 +36,17 @@ inline int slopeIndexToDBPerOct (int index)
     return (index >= 0 && index < 9) ? slopes[index] : 12;
 }
 
-inline int slopeToSections (int dbPerOct)
+struct SlopeInfo
 {
-    if (dbPerOct == 0) return 8;    // Brickwall: max sections
-    if (dbPerOct <= 6) return 1;    // First-order
-    return dbPerOct / 12;           // 12->1, 24->2, 36->3, etc.
+    int numSections;          // Total SVF sections needed
+    bool lastIsFirstOrder;    // True if the last section should be first-order (odd order)
+};
+
+inline SlopeInfo getSlopeInfo (int dbPerOct)
+{
+    if (dbPerOct == 0) return { 8, false };    // Brickwall: 8 second-order sections
+    int order = dbPerOct / 6;                  // 6->1, 12->2, 18->3, 24->4, etc.
+    bool isOdd = (order % 2) != 0;
+    int sections = (order + 1) / 2;            // Ceiling division by 2
+    return { sections, isOdd };
 }
