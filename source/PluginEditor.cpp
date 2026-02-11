@@ -34,26 +34,26 @@ AdvancedEQEditor::AdvancedEQEditor (AdvancedEQProcessor& p)
         controlStrip.setSelectedBand (band);
     };
 
-    // Wire freeze toggle
-    headerToolbar.onFreezeToggled = [this] (bool frozen)
+    // Wire freeze toggle (bottom control strip)
+    controlStrip.onFreezeToggled = [this] (bool frozen)
     {
         curveDisplay.setAnalyzerFrozen (frozen);
     };
 
-    // Wire match button
-    headerToolbar.onMatchClicked = [this]
+    // Wire match button (bottom control strip)
+    controlStrip.onMatchClicked = [this]
     {
         matchPanel.setVisible (! matchPanel.isVisible());
     };
 
-    // Sketch mode toggle
-    headerToolbar.onSketchToggled = [this] (bool active)
+    // Sketch mode toggle (bottom control strip)
+    controlStrip.onSketchToggled = [this] (bool active)
     {
         curveDisplay.setSketchMode (active);
     };
 
-    // Browse button - shows enhanced preset browser panel
-    headerToolbar.onBrowseClicked = [this]
+    // Browse button - shows enhanced preset browser panel (bottom control strip)
+    controlStrip.onBrowseClicked = [this]
     {
         presetBrowser.setVisible (! presetBrowser.isVisible());
     };
@@ -75,7 +75,7 @@ AdvancedEQEditor::AdvancedEQEditor (AdvancedEQProcessor& p)
 
     // Help overlay (topmost child, transparent to mouse clicks)
     addAndMakeVisible (helpOverlay);
-    headerToolbar.onHelpToggled = [this] (bool active)
+    controlStrip.onHelpToggled = [this] (bool active)
     {
         helpOverlay.setHelpModeActive (active);
     };
@@ -104,7 +104,7 @@ void AdvancedEQEditor::resized()
     auto bounds = getLocalBounds();
 
     headerToolbar.setBounds (bounds.removeFromTop (36));
-    controlStrip.setBounds (bounds.removeFromBottom (90));
+    controlStrip.setBounds (bounds.removeFromBottom (120));
 
     // Level meter on the right edge
     levelMeter.setBounds (bounds.removeFromRight (20));

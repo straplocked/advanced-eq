@@ -212,14 +212,15 @@ void ProcessingChain::processBands (juce::AudioBuffer<float>& buffer)
         }
     }
 
-    // Crosstalk + noise floor (Warm mode only)
-    if (characterMode == 2 && isStereo)
+    // Crosstalk + noise floor (Vintage and Aggressive modes)
+    if (characterMode >= 2 && isStereo)
     {
         float* dataL = buffer.getWritePointer (0);
         float* dataR = buffer.getWritePointer (1);
 
-        constexpr float crosstalk = 0.002f; // ~-54 dB channel bleed
-        constexpr float noiseLevel = 1e-5f; // ~-100 dBFS
+        // Aggressive: stronger crosstalk and noise than Vintage
+        float crosstalk = (characterMode == 3) ? 0.006f : 0.002f; // ~-44 dB vs ~-54 dB
+        float noiseLevel = (characterMode == 3) ? 3e-5f : 1e-5f;  // ~-90 dBFS vs ~-100 dBFS
 
         for (int i = 0; i < numSamples; ++i)
         {
@@ -238,10 +239,10 @@ void ProcessingChain::processBands (juce::AudioBuffer<float>& buffer)
             dataR[i] += pinkState[1] * noiseLevel;
         }
     }
-    else if (characterMode == 2 && ! isStereo)
+    else if (characterMode >= 2 && ! isStereo)
     {
         float* data = buffer.getWritePointer (0);
-        constexpr float noiseLevel = 1e-5f;
+        float noiseLevel = (characterMode == 3) ? 3e-5f : 1e-5f;
 
         for (int i = 0; i < numSamples; ++i)
         {
@@ -377,12 +378,12 @@ void ProcessingChain::setAnalogMode (bool enabled)
 
 void ProcessingChain::setCharacterMode (int mode)
 {
-    mode = juce::jlimit (0, 2, mode);
+    mode = juce::jlimit (0, 3, mode);
     if (mode == characterMode)
         return;
 
     characterMode = mode;
-    analogMode = (mode >= 1); // Gentle and Warm enable analog-style processing
+    analogMode = (mode >= 1); // Smooth, Vintage, Aggressive enable analog-style processing
 
     for (auto& band : bands)
         band.setCharacterMode (mode);

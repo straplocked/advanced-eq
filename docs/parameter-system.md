@@ -127,7 +127,7 @@ Several parameters use JUCE's `NormalisableRange` skew factor for logarithmic sc
 | `analyzer_pre` | `AudioParameterBool` | 0/1 | false | -- | Show pre-EQ spectrum |
 | `analyzer_res` | `AudioParameterChoice` | 0-3 | 2 (High) | -- | Analyzer resolution: Low/Normal/High/Max (reserved) |
 | `analyzer_speed` | `AudioParameterFloat` | 0-1 | 0.7 | -- | Analyzer smoothing coefficient |
-| `analog_mode` | `AudioParameterBool` | 0/1 | false | -- | Enable analog emulation |
+| `analog_mode` | `AudioParameterChoice` | 0-3 | 0 (Clean) | -- | Character mode: Clean / Smooth / Vintage / Aggressive |
 
 Parameters marked "(reserved)" are defined in the layout but not yet fully implemented in the DSP engine.
 

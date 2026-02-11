@@ -279,20 +279,34 @@ double getMagnitudeAtFrequency (double freq) const
 }
 ```
 
-## Analog Mode: Proportional Q
+## Character Modes
 
-When analog mode is enabled, Bell filters exhibit proportional Q behavior -- the bandwidth narrows as gain increases:
+The Character Mode selector controls analog-style coloration. Four modes are available:
+
+| Mode | Proportional Q | Per-Band Saturation | Crosstalk | Noise Floor |
+|------|---------------|--------------------|-----------| ------------|
+| **Clean** (0) | off | none | none | none |
+| **Smooth** (1) | 0.4x factor | even-harmonic (`x + 0.15x^2`) | none | none |
+| **Vintage** (2) | 0.4x factor | tanh (drive 1.2) | -54 dB bleed | -100 dBFS pink |
+| **Aggressive** (3) | 0.7x factor | hard tanh (drive 2.5) | -44 dB bleed | -90 dBFS pink |
+
+### Proportional Q
+
+When a non-Clean character is selected, Bell filters exhibit proportional Q behavior -- the bandwidth narrows as gain increases:
 
 ```cpp
 if (analogMode && params.type == FilterType::Bell)
-    q *= (1.0f + 0.4f * std::abs (gain) / 30.0f);
+{
+    float qFactor = (characterMode == 3) ? 0.7f : 0.4f;
+    q *= (1.0f + qFactor * std::abs (gain) / 30.0f);
+}
 ```
 
-At maximum gain (+/-30 dB), the Q multiplier is 1.4x. This models the behavior of analog parametric EQs where the resonance increases with gain, yielding a more "musical" frequency response.
+At maximum gain (+/-30 dB), the Q multiplier is 1.4x (Smooth/Vintage) or 1.7x (Aggressive).
 
-## Analog Mode: Per-Band Saturation
+### Per-Band Saturation
 
-Each band applies a soft-clipping waveshaper when analog mode is enabled:
+Each band applies a waveshaper after filtering. The Vintage mode uses a moderate tanh saturator:
 
 ```cpp
 float saturate (float x)
@@ -305,11 +319,24 @@ float saturate (float x)
 }
 ```
 
+The Aggressive mode uses a harder saturator with more drive and asymmetry:
+
+```cpp
+float aggressiveSaturate (float x)
+{
+    constexpr float drive = 2.5f;
+    constexpr float asymmetry = 0.12f;
+    constexpr float normFactor = 1.0f / 0.9866143f;  // 1/tanh(2.5)
+    float shaped = x + asymmetry * x * x;
+    return std::tanh (shaped * drive) * normFactor;
+}
+```
+
 **Transfer function analysis:**
-- For small signals (|x| << 1): `saturate(x) ~ x` (unity gain, transparent)
+- For small signals (|x| << 1): both saturators approximate unity gain (transparent)
 - For moderate signals: the `x^2` term introduces 2nd-order harmonics; `tanh` introduces odd-order harmonics
 - For large signals: `tanh` compresses toward +/-1, then normFactor scales back to approximately unity
-- The asymmetry of the `x^2` term creates an even/odd harmonic blend characteristic of tube and transformer circuits
+- Aggressive mode reaches compression earlier and with more harmonic content due to the higher drive and asymmetry
 
 ## Filter Type Descriptions
 

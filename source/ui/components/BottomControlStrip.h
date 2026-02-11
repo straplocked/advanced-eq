@@ -26,6 +26,13 @@ public:
     void setSelectedBand (int bandIndex);
     int getSelectedBand() const { return selectedBand; }
 
+    // Global tool callbacks (moved from HeaderToolbar)
+    std::function<void (bool)> onFreezeToggled;
+    std::function<void()> onMatchClicked;
+    std::function<void (bool)> onHelpToggled;
+    std::function<void (bool)> onSketchToggled;
+    std::function<void()> onBrowseClicked;
+
 private:
     AdvancedEQProcessor& processor;
     int selectedBand = -1;
@@ -59,7 +66,28 @@ private:
     juce::Label dynAttackLabel;
     juce::Label dynReleaseLabel;
 
-    // Attachments
+    // --- Global tools (right zone) ---
+    juce::TextButton phaseInvertButton { juce::String::charToString (0x00D8) };
+    juce::ComboBox characterSelector;
+    juce::TextButton analyzerButton { "Analyzer" };
+    juce::TextButton freezeButton { "Freeze" };
+    juce::TextButton matchButton { "Match" };
+    juce::TextButton sketchButton { "Sketch" };
+    juce::TextButton browseButton { "Browse" };
+    juce::TextButton midiPCButton { "MIDI PC" };
+    juce::TextButton helpButton { "?" };
+    juce::ComboBox processModeSelector;
+    juce::ComboBox lpQualitySelector;
+
+    // Global tool attachments
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> phaseInvertAttachment;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> characterAttachment;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> analyzerAttachment;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> processModeAttachment;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> lpQualityAttachment;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> midiPCAttachment;
+
+    // Band-specific attachments
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> typeAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> slopeAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> stereoAttachment;

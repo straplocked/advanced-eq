@@ -82,7 +82,7 @@ namespace ParamIDs
 
     inline juce::StringArray getCharacterModeNames()
     {
-        return { "Clean", "Gentle", "Warm" };
+        return { "Clean", "Smooth", "Vintage", "Aggressive" };
     }
 
     inline juce::StringArray getLinearPhaseQualityNames()

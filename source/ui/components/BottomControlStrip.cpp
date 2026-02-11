@@ -97,7 +97,7 @@ BottomControlStrip::BottomControlStrip (AdvancedEQProcessor& p)
     addChildComponent (dynAttackLabel);
     addChildComponent (dynReleaseLabel);
 
-    // Component IDs for help system
+    // Component IDs for help system (band controls)
     typeSelector.setComponentID ("bottom.typeSelector");
     slopeSelector.setComponentID ("bottom.slopeSelector");
     stereoSelector.setComponentID ("bottom.stereoSelector");
@@ -110,11 +110,128 @@ BottomControlStrip::BottomControlStrip (AdvancedEQProcessor& p)
     dynAttackSlider.setComponentID ("bottom.dynAttackKnob");
     dynReleaseSlider.setComponentID ("bottom.dynReleaseKnob");
 
+    // --- Global tools (right zone, always visible) ---
+    auto& apvts = processor.getAPVTS();
+
+    // Phase invert
+    phaseInvertButton.setClickingTogglesState (true);
+    phaseInvertButton.setColour (juce::TextButton::buttonOnColourId, juce::Colour (0xffff6b6b).withAlpha (0.3f));
+    addAndMakeVisible (phaseInvertButton);
+    phaseInvertAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (
+        apvts, ParamIDs::kPhaseInvert, phaseInvertButton);
+
+    // Character mode selector
+    characterSelector.addItemList (ParamIDs::getCharacterModeNames(), 1);
+    characterSelector.setJustificationType (juce::Justification::centred);
+    addAndMakeVisible (characterSelector);
+    characterAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (
+        apvts, ParamIDs::kAnalogMode, characterSelector);
+
+    // Analyzer toggle
+    analyzerButton.setClickingTogglesState (true);
+    analyzerButton.setColour (juce::TextButton::buttonOnColourId, ColourPalette::compositeCurve().withAlpha (0.3f));
+    addAndMakeVisible (analyzerButton);
+    analyzerAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (
+        apvts, ParamIDs::kAnalyzerOn, analyzerButton);
+
+    // Freeze toggle
+    freezeButton.setClickingTogglesState (true);
+    freezeButton.setColour (juce::TextButton::buttonOnColourId, juce::Colour (0xff4488ff).withAlpha (0.3f));
+    freezeButton.onClick = [this]
+    {
+        if (onFreezeToggled)
+            onFreezeToggled (freezeButton.getToggleState());
+    };
+    addAndMakeVisible (freezeButton);
+
+    // Match button
+    matchButton.setColour (juce::TextButton::buttonColourId, juce::Colours::transparentBlack);
+    matchButton.setColour (juce::TextButton::textColourOffId, ColourPalette::textDim());
+    matchButton.onClick = [this]
+    {
+        if (onMatchClicked)
+            onMatchClicked();
+    };
+    addAndMakeVisible (matchButton);
+
+    // Sketch toggle
+    sketchButton.setClickingTogglesState (true);
+    sketchButton.setColour (juce::TextButton::buttonOnColourId, juce::Colour (0xffffcc00).withAlpha (0.3f));
+    sketchButton.onClick = [this]
+    {
+        if (onSketchToggled)
+            onSketchToggled (sketchButton.getToggleState());
+    };
+    addAndMakeVisible (sketchButton);
+
+    // Browse button
+    browseButton.setColour (juce::TextButton::buttonColourId, juce::Colours::transparentBlack);
+    browseButton.setColour (juce::TextButton::textColourOffId, ColourPalette::textDim());
+    browseButton.onClick = [this]
+    {
+        if (onBrowseClicked)
+            onBrowseClicked();
+    };
+    addAndMakeVisible (browseButton);
+
+    // MIDI Program Change toggle
+    midiPCButton.setClickingTogglesState (true);
+    midiPCButton.setColour (juce::TextButton::buttonOnColourId, juce::Colour (0xff66ccff).withAlpha (0.3f));
+    addAndMakeVisible (midiPCButton);
+    midiPCAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (
+        apvts, ParamIDs::kMidiProgramChange, midiPCButton);
+
+    // Help mode toggle
+    helpButton.setClickingTogglesState (true);
+    helpButton.setColour (juce::TextButton::buttonOnColourId, ColourPalette::compositeCurve().withAlpha (0.3f));
+    helpButton.onClick = [this]
+    {
+        if (onHelpToggled)
+            onHelpToggled (helpButton.getToggleState());
+    };
+    addAndMakeVisible (helpButton);
+
+    // Process mode selector
+    processModeSelector.addItemList (ParamIDs::getProcessingModeNames(), 1);
+    processModeSelector.setJustificationType (juce::Justification::centred);
+    addAndMakeVisible (processModeSelector);
+    processModeAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (
+        apvts, ParamIDs::kProcessMode, processModeSelector);
+
+    // Linear phase quality selector
+    lpQualitySelector.addItemList (ParamIDs::getLinearPhaseQualityNames(), 1);
+    lpQualitySelector.setJustificationType (juce::Justification::centred);
+    addAndMakeVisible (lpQualitySelector);
+    lpQualityAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (
+        apvts, ParamIDs::kLinearPhaseQuality, lpQualitySelector);
+
+    // Component IDs for help system (global tools)
+    phaseInvertButton.setComponentID ("bottom.phaseInvert");
+    characterSelector.setComponentID ("bottom.character");
+    analyzerButton.setComponentID ("bottom.analyzer");
+    freezeButton.setComponentID ("bottom.freeze");
+    matchButton.setComponentID ("bottom.match");
+    sketchButton.setComponentID ("bottom.sketch");
+    browseButton.setComponentID ("bottom.browse");
+    midiPCButton.setComponentID ("bottom.midiPC");
+    helpButton.setComponentID ("bottom.help");
+    processModeSelector.setComponentID ("bottom.processMode");
+    lpQualitySelector.setComponentID ("bottom.lpQuality");
+
     startTimerHz (10);
 }
 
 BottomControlStrip::~BottomControlStrip()
 {
+    // Global tool attachments
+    phaseInvertAttachment.reset();
+    characterAttachment.reset();
+    analyzerAttachment.reset();
+    processModeAttachment.reset();
+    lpQualityAttachment.reset();
+    midiPCAttachment.reset();
+
+    // Band-specific attachments
     freqAttachment.reset();
     gainAttachment.reset();
     qAttachment.reset();
@@ -307,20 +424,28 @@ void BottomControlStrip::paint (juce::Graphics& g)
     g.setColour (ColourPalette::bevelLight());
     g.drawLine (0.0f, 1.5f, bounds.getRight(), 1.5f, 1.0f);
 
+    // Horizontal separator between band controls (top) and global toolbar (bottom)
+    float sepY = bounds.getBottom() - 30.0f;
+    g.setColour (ColourPalette::bevelDark());
+    g.drawLine (4.0f, sepY, bounds.getRight() - 4.0f, sepY, 1.0f);
+    g.setColour (ColourPalette::bevelLight());
+    g.drawLine (4.0f, sepY + 1.0f, bounds.getRight() - 4.0f, sepY + 1.0f, 1.0f);
+
     if (selectedBand < 0)
     {
-        // Show help text when no band selected
+        // Show help text when no band selected (band controls zone only)
+        auto bandZone = getLocalBounds().withBottom ((int) sepY);
         g.setColour (ColourPalette::textDim());
         g.setFont (11.0f);
         g.drawText ("Click to add band  |  Drag to adjust  |  Scroll for Q  |  Double-click to remove",
-                     getLocalBounds(), juce::Justification::centred, false);
+                     bandZone, juce::Justification::centred, false);
     }
     else
     {
         // Band colour indicator with glow halo
         auto colour = ColourPalette::bandColour (selectedBand);
         float dotX = 18.0f;
-        float dotY = (float) getHeight() * 0.35f;
+        float dotY = (sepY - bounds.getY()) * 0.5f;
 
         // Glow
         g.setColour (colour.withAlpha (0.15f));
@@ -334,7 +459,57 @@ void BottomControlStrip::paint (juce::Graphics& g)
 
 void BottomControlStrip::resized()
 {
-    auto bounds = getLocalBounds().reduced (8, 4);
+    auto bounds = getLocalBounds().reduced (8, 2);
+
+    // --- Bottom row: global toolbar (full width, fixed 26px) ---
+    auto toolbarRow = bounds.removeFromBottom (26);
+    bounds.removeFromBottom (4); // gap between rows
+
+    // Centre the toolbar controls within the full-width row
+    int totalToolW = 100 + 2 + 60 + 2 + 60 + 2 + 26  // selectors + phase
+                   + 12                                   // gap
+                   + 56 + 2 + 44 + 2 + 38 + 2 + 44 + 2 + 44 + 2 + 48 + 2 + 22; // buttons
+    auto tb = toolbarRow.withSizeKeepingCentre (juce::jmin (totalToolW, toolbarRow.getWidth()),
+                                                 toolbarRow.getHeight());
+
+    // Left group: selectors
+    auto pmArea = tb.removeFromLeft (100);
+    processModeSelector.setBounds (pmArea.withHeight (22).withCentre (pmArea.getCentre()));
+    tb.removeFromLeft (2);
+    auto lpArea = tb.removeFromLeft (60);
+    lpQualitySelector.setBounds (lpArea.withHeight (22).withCentre (lpArea.getCentre()));
+    tb.removeFromLeft (2);
+    auto charArea = tb.removeFromLeft (60);
+    characterSelector.setBounds (charArea.withHeight (22).withCentre (charArea.getCentre()));
+    tb.removeFromLeft (2);
+    auto phaseArea = tb.removeFromLeft (26);
+    phaseInvertButton.setBounds (phaseArea.withHeight (22).withCentre (phaseArea.getCentre()));
+
+    tb.removeFromLeft (12); // gap between groups
+
+    // Right group: buttons
+    auto analyzerArea = tb.removeFromLeft (56);
+    analyzerButton.setBounds (analyzerArea.withHeight (22).withCentre (analyzerArea.getCentre()));
+    tb.removeFromLeft (2);
+    auto freezeArea = tb.removeFromLeft (44);
+    freezeButton.setBounds (freezeArea.withHeight (22).withCentre (freezeArea.getCentre()));
+    tb.removeFromLeft (2);
+    auto matchArea = tb.removeFromLeft (38);
+    matchButton.setBounds (matchArea.withHeight (22).withCentre (matchArea.getCentre()));
+    tb.removeFromLeft (2);
+    auto sketchArea = tb.removeFromLeft (44);
+    sketchButton.setBounds (sketchArea.withHeight (22).withCentre (sketchArea.getCentre()));
+    tb.removeFromLeft (2);
+    auto browseArea = tb.removeFromLeft (44);
+    browseButton.setBounds (browseArea.withHeight (22).withCentre (browseArea.getCentre()));
+    tb.removeFromLeft (2);
+    auto midiArea = tb.removeFromLeft (48);
+    midiPCButton.setBounds (midiArea.withHeight (22).withCentre (midiArea.getCentre()));
+    tb.removeFromLeft (2);
+    auto helpArea = tb.removeFromLeft (22);
+    helpButton.setBounds (helpArea.withHeight (22).withCentre (helpArea.getCentre()));
+
+    // --- Top row: band controls (full width) ---
 
     // Band indicator area
     auto bandArea = bounds.removeFromLeft (30);
@@ -388,7 +563,7 @@ void BottomControlStrip::resized()
 
     bounds.removeFromLeft (12);
 
-    // Dynamic EQ controls (right side)
+    // Dynamic EQ controls
     int dynKnobSize = 38;
     int dynAreaWidth = 52;
 

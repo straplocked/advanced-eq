@@ -149,7 +149,7 @@ public:
      */
     void setAnalogMode (bool enabled);
 
-    /** Set character mode: 0=Clean, 1=Gentle, 2=Warm */
+    /** Set character mode: 0=Clean, 1=Smooth, 2=Vintage, 3=Aggressive */
     void setCharacterMode (int mode);
 
     /** Set linear phase quality: 0=Low(2048), 1=Medium(4096), 2=High(8192) */
@@ -210,7 +210,7 @@ private:
     int maxBlockSize = 512;
     int numChannels = 2;
 
-    // Character mode state (0=Clean, 1=Gentle, 2=Warm)
+    // Character mode state (0=Clean, 1=Smooth, 2=Vintage, 3=Aggressive)
     int characterMode = 0;
     bool analogMode = false;
     juce::Random noiseRng;

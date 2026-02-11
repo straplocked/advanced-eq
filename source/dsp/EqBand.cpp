@@ -69,6 +69,15 @@ float EqBand::saturate (float x)
     return std::tanh (shaped * drive) * normFactor;
 }
 
+float EqBand::aggressiveSaturate (float x)
+{
+    constexpr float drive = 2.5f;
+    constexpr float asymmetry = 0.12f;
+    constexpr float normFactor = 1.0f / 0.9866143f; // 1/tanh(2.5)
+    float shaped = x + asymmetry * x * x;
+    return std::tanh (shaped * drive) * normFactor;
+}
+
 void EqBand::updateParameters (const BandParameters& params)
 {
     // Reset filters when stereo placement changes to prevent clicks from stale state
@@ -110,8 +119,12 @@ void EqBand::updateParameters (const BandParameters& params)
     float q = smoothedQ.getCurrentValue();
 
     // Proportional Q: bell filters tighten as gain increases (analog behavior)
+    // Aggressive mode uses stronger tightening factor
     if (analogMode && params.type == FilterType::Bell)
-        q *= (1.0f + 0.4f * std::abs (gain) / 30.0f);
+    {
+        float qFactor = (characterMode == 3) ? 0.7f : 0.4f;
+        q *= (1.0f + qFactor * std::abs (gain) / 30.0f);
+    }
 
     for (auto& f : filters)
         f.setParameters (params.type, freq, q, gain, params.slopeDBPerOct);
@@ -187,21 +200,26 @@ void EqBand::process (juce::AudioBuffer<float>& buffer, int numSamples)
             filters[ch].process (buffer.getWritePointer (ch), numSamples);
     }
 
-    // Per-band saturation (Gentle: even-harmonic, Warm: full)
+    // Per-band saturation: Smooth=even-harmonic, Vintage=tanh, Aggressive=hard tanh
     if (characterMode >= 1)
     {
         for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
         {
             float* data = buffer.getWritePointer (ch);
-            if (characterMode == 1)
+            if (characterMode == 1) // Smooth
             {
                 for (int i = 0; i < numSamples; ++i)
-                    data[i] = data[i] + 0.15f * data[i] * data[i]; // Even-harmonic
+                    data[i] = data[i] + 0.15f * data[i] * data[i];
             }
-            else
+            else if (characterMode == 2) // Vintage
             {
                 for (int i = 0; i < numSamples; ++i)
                     data[i] = saturate (data[i]);
+            }
+            else // Aggressive
+            {
+                for (int i = 0; i < numSamples; ++i)
+                    data[i] = aggressiveSaturate (data[i]);
             }
         }
     }
@@ -247,7 +265,7 @@ void EqBand::processSingleChannel (float* channelData, int numSamples)
         filterL.process (channelData, numSamples);
     }
 
-    // Per-band saturation (Gentle: even-harmonic, Warm: full)
+    // Per-band saturation: Smooth=even-harmonic, Vintage=tanh, Aggressive=hard tanh
     if (characterMode >= 1)
     {
         if (characterMode == 1)
@@ -255,10 +273,15 @@ void EqBand::processSingleChannel (float* channelData, int numSamples)
             for (int i = 0; i < numSamples; ++i)
                 channelData[i] = channelData[i] + 0.15f * channelData[i] * channelData[i];
         }
-        else
+        else if (characterMode == 2)
         {
             for (int i = 0; i < numSamples; ++i)
                 channelData[i] = saturate (channelData[i]);
+        }
+        else
+        {
+            for (int i = 0; i < numSamples; ++i)
+                channelData[i] = aggressiveSaturate (channelData[i]);
         }
     }
 }
@@ -314,10 +337,15 @@ void EqBand::processChannel (float* channelData, int numSamples, int channelInde
             for (int i = 0; i < numSamples; ++i)
                 channelData[i] = channelData[i] + 0.15f * channelData[i] * channelData[i];
         }
-        else
+        else if (characterMode == 2)
         {
             for (int i = 0; i < numSamples; ++i)
                 channelData[i] = saturate (channelData[i]);
+        }
+        else
+        {
+            for (int i = 0; i < numSamples; ++i)
+                channelData[i] = aggressiveSaturate (channelData[i]);
         }
     }
 }

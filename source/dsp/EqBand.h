@@ -87,7 +87,7 @@ private:
     double sampleRate = 44100.0;
     bool needsUpdate = true;
     bool analogMode = false;
-    int characterMode = 0; // 0=Clean, 1=Gentle, 2=Warm
+    int characterMode = 0; // 0=Clean, 1=Smooth, 2=Vintage, 3=Aggressive
 
     // Dynamic EQ (only L/R used for stereo; index 0/1 for surround)
     std::array<EnvelopeFollower, kMaxChannels> envFollowers;
@@ -100,6 +100,7 @@ private:
     std::atomic<float> dynamicGainReduction { 0.0f };
 
     static float saturate (float x);
+    static float aggressiveSaturate (float x);
 
     // Spectral dynamics
     bool spectralEnabled = false;

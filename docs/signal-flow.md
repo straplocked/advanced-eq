@@ -40,12 +40,12 @@ processingChain.setOutputGain (rawOutputGain->load());
 processingChain.setAnalogMode (rawAnalogMode->load() >= 0.5f);
 ```
 
-All 24 bands read their 12 parameters from cached `std::atomic<float>*` pointers via `BandParameterAttachment::getCurrentParameters()`. This produces a `BandParameters` struct per band. Global parameters (output gain, analog mode) are read from similarly cached raw pointers. No locks, no allocations.
+All 24 bands read their 12 parameters from cached `std::atomic<float>*` pointers via `BandParameterAttachment::getCurrentParameters()`. This produces a `BandParameters` struct per band. Global parameters (output gain, character mode) are read from similarly cached raw pointers. No locks, no allocations.
 
 Each `EqBand::updateParameters()` call:
 - Sets the `SmoothedValue` target for frequency, gain, and Q (20ms ramp)
 - Immediately applies type, slope, and stereo placement changes
-- In analog mode for Bell filters: applies proportional Q scaling (`q *= 1.0 + 0.4 * |gain| / 30.0`)
+- In non-Clean character modes for Bell filters: applies proportional Q scaling (0.4x factor for Smooth/Vintage, 0.7x for Aggressive)
 - Forwards parameters to both `CascadedFilter` instances (filterL and filterR)
 
 ### Step 4: Pre-EQ FFT Analysis
@@ -143,9 +143,10 @@ for each sample i:
     gain = smoothedGain.getNextValue()
     q    = smoothedQ.getNextValue()
 
-    // Analog proportional Q (Bell only)
+    // Character mode proportional Q (Bell only, non-Clean modes)
     if analogMode && type == Bell:
-        q *= (1.0 + 0.4 * |gain| / 30.0)
+        qFactor = 0.7 if Aggressive else 0.4
+        q *= (1.0 + qFactor * |gain| / 30.0)
 
     filterL.setParameters(type, freq, q, gain, slope)
     filterR.setParameters(type, freq, q, gain, slope)
@@ -167,57 +168,39 @@ filterR.process(dataR, numSamples)
 
 Block processing is significantly more efficient because coefficient computation happens once per block rather than once per sample.
 
-#### Per-Band Analog Saturation
+#### Per-Band Character Saturation
 
-When analog mode is enabled, a soft-clipping waveshaper is applied after filtering:
+When a non-Clean character mode is selected, a waveshaper is applied after filtering. The saturation type varies by mode:
 
-```cpp
-float EqBand::saturate (float x)
-{
-    constexpr float drive = 1.2f;
-    constexpr float asymmetry = 0.05f;
-    constexpr float normFactor = 1.0f / 0.8336546f;  // 1/tanh(1.2)
-    float shaped = x + asymmetry * x * x;             // Asymmetric pre-shape
-    return std::tanh (shaped * drive) * normFactor;    // Soft clip + normalize
-}
-```
+- **Smooth**: Even-harmonic only (`x + 0.15 * x^2`) -- subtle warmth
+- **Vintage**: Moderate tanh saturator (drive 1.2, asymmetry 0.05) -- classic analog color
+- **Aggressive**: Hard tanh saturator (drive 2.5, asymmetry 0.12) -- pronounced harmonic content
 
-Key characteristics:
-- **Drive**: 1.2x input scaling before tanh -- mild saturation
-- **Asymmetry**: The `0.05 * x^2` term adds even-order harmonics, modeling the asymmetric transfer function of analog op-amps/transistors
-- **Normalization**: Division by `tanh(1.2)` ensures unity gain at low levels
-- Applied independently to each channel, after each band's filter processing
+Applied independently to each channel, after each band's filter processing.
 
-### Step 6: Analog Mode Global Effects
+### Step 6: Character Mode Global Effects
 
-After all four passes complete, if analog mode is enabled and the buffer is stereo:
+After all four passes complete, if Vintage or Aggressive mode is selected:
 
-#### Channel Crosstalk
+#### Channel Crosstalk (Vintage and Aggressive)
 
 ```cpp
-constexpr float crosstalk = 0.002f;  // ~-54 dB channel bleed
+float crosstalk = (characterMode == 3) ? 0.006f : 0.002f;  // Aggressive: -44 dB, Vintage: -54 dB
 float l = dataL[i];
 float r = dataR[i];
 dataL[i] = l + crosstalk * r;
 dataR[i] = r + crosstalk * l;
 ```
 
-This models the inter-channel bleed found in analog mixing consoles and outboard EQ units. At 0.002 (-54 dB), it is subtle but contributes to a slightly less "perfect" stereo image.
+This models the inter-channel bleed found in analog mixing consoles. Aggressive mode applies 3x stronger crosstalk than Vintage.
 
-#### Pink Noise Floor
+#### Pink Noise Floor (Vintage and Aggressive)
 
 ```cpp
-constexpr float noiseLevel = 1e-5f;  // ~-100 dBFS
-
-float whiteL = noiseRng.nextFloat() * 2.0f - 1.0f;  // [-1, +1]
-float whiteR = noiseRng.nextFloat() * 2.0f - 1.0f;
-pinkState[0] = 0.99f * pinkState[0] + 0.01f * whiteL;  // One-pole LPF
-pinkState[1] = 0.99f * pinkState[1] + 0.01f * whiteR;
-dataL[i] += pinkState[0] * noiseLevel;
-dataR[i] += pinkState[1] * noiseLevel;
+float noiseLevel = (characterMode == 3) ? 3e-5f : 1e-5f;  // Aggressive: -90 dBFS, Vintage: -100 dBFS
 ```
 
-A one-pole low-pass filter (`y = 0.99*y + 0.01*x`) shapes white noise into an approximately pink spectrum (the filter's -3 dB point is at about 70 Hz at 44.1 kHz). The resulting pink noise is scaled to approximately -100 dBFS, modeling the thermal noise floor of analog circuitry. Independent noise generators run for each channel.
+A one-pole low-pass filter (`y = 0.99*y + 0.01*x`) shapes white noise into an approximately pink spectrum (the filter's -3 dB point is at about 70 Hz at 44.1 kHz). Aggressive mode applies a 3x louder noise floor than Vintage. Independent noise generators run for each channel.
 
 For mono operation, only one channel of noise is generated (no crosstalk is applied).
 

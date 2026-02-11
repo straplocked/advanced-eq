@@ -11,16 +11,15 @@ AdvancedEQEditor (1000x600 default, resizable 750-1920 x 450-1080)
 |
 |-- HeaderToolbar (top, 36px height)
 |   |-- Title label "Advanced EQ"
+|   |-- undoButton "Undo" / redoButton "Redo"
+|   |-- abToggleButton "A" / copyABButton "A>B"
 |   |-- prevButton "<" (preset navigation)
 |   |-- presetNameButton (displays current preset name, opens menu)
 |   |-- nextButton ">" (preset navigation)
 |   |-- saveButton "Save" (save current state as user preset)
-|   |-- processModeSelector (ComboBox: Zero Latency / Natural Phase / Linear Phase)
-|   |-- analogButton "Analog" (toggle, ButtonAttachment -> analog_mode)
-|   |-- analyzerButton "Analyzer" (toggle, ButtonAttachment -> analyzer_on)
-|   |-- freezeButton "Freeze" (toggle, local state only)
+|   |-- fullscreenButton "FS"
 |   |-- outputGainSlider (rotary, SliderAttachment -> output_gain)
-|   +-- outputGainLabel (displays dB value)
+|   +-- outputWidthSlider (rotary, SliderAttachment -> output_width)
 |
 |-- EqCurveDisplay (center, fills remaining space between header and bottom strip)
 |   |-- Background + grid (frequency lines + gain lines)
@@ -35,17 +34,20 @@ AdvancedEQEditor (1000x600 default, resizable 750-1920 x 450-1080)
 |   |-- Range buttons (top-right: +/-3, +/-6, +/-12, +/-30 dB)
 |   +-- Tooltip (shows frequency + gain + note name during hover/drag)
 |
-+-- BottomControlStrip (bottom, 90px height)
-    |-- bandLabel (colored dot + "Band N")
-    |-- typeSelector (ComboBox: Bell, Low Shelf, High Shelf, ...)
-    |-- slopeSelector (ComboBox: 6 dB/oct ... Brickwall)
-    |-- stereoSelector (ComboBox: Stereo, Left, Right, Mid, Side)
-    |-- freqSlider (rotary knob)
-    |-- gainSlider (rotary knob)
-    |-- qSlider (rotary knob)
-    |-- freqLabel (value display under knob)
-    |-- gainLabel (value display under knob)
-    +-- qLabel (value display under knob)
++-- BottomControlStrip (bottom, 120px height, two rows)
+    |-- Top row: band controls (shown when a band is selected)
+    |   |-- bandLabel (colored dot + "Band N")
+    |   |-- typeSelector, slopeSelector, stereoSelector
+    |   |-- freqSlider, gainSlider, qSlider (rotary knobs + value labels)
+    |   +-- dynEnableButton, dynThresh/Range/Attack/Release knobs
+    |
+    +-- Bottom row: global toolbar (always visible, full width)
+        |-- processModeSelector (Zero Latency / Natural Phase / Linear Phase)
+        |-- lpQualitySelector (Low / Medium / High)
+        |-- characterSelector (Clean / Smooth / Vintage / Aggressive)
+        |-- phaseInvertButton, analyzerButton, freezeButton
+        |-- matchButton, sketchButton, browseButton
+        +-- midiPCButton, helpButton
 ```
 
 **Source files**:
