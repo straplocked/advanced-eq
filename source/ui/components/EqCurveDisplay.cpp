@@ -129,18 +129,110 @@ void EqCurveDisplay::timerCallback()
 
 void EqCurveDisplay::updateCurves()
 {
-    auto& chain = processor.getProcessingChain();
+    auto& apvts = processor.getAPVTS();
+    double sr = processor.getSampleRate();
+    if (sr <= 0.0)
+        sr = 44100.0;
 
-    // Get composite magnitude
-    chain.computeCompositeMagnitude (frequencyPoints.data(), compositeMagnitudes.data(),
-                                     Constants::kCurveResolution);
+    // Zero all accumulators
+    compositeMagnitudes.fill (0.0);
+    std::array<double, Constants::kCurveResolution> stereoAccum {};
+    leftCompositeMagnitudes.fill (0.0);
+    rightCompositeMagnitudes.fill (0.0);
+    midCompositeMagnitudes.fill (0.0);
+    sideCompositeMagnitudes.fill (0.0);
 
-    // Get per-band magnitudes
+    bool hasLeft = false, hasRight = false, hasMid = false, hasSide = false;
+
     for (int b = 0; b < Constants::kMaxBands; ++b)
     {
-        chain.computeBandMagnitude (b, frequencyPoints.data(),
-                                    bandMagnitudes[(size_t) b].data(),
-                                    Constants::kCurveResolution);
+        auto* activeParam = apvts.getRawParameterValue (ParamIDs::bandParam (b, ParamIDs::kActive));
+        if (activeParam->load() < 0.5f)
+        {
+            // Zero inactive band magnitudes
+            bandMagnitudes[(size_t) b].fill (0.0);
+            continue;
+        }
+
+        // Read all parameters directly from APVTS for lag-free UI response
+        auto* freqParam  = apvts.getRawParameterValue (ParamIDs::bandParam (b, ParamIDs::kFrequency));
+        auto* gainParam  = apvts.getRawParameterValue (ParamIDs::bandParam (b, ParamIDs::kGain));
+        auto* qParam     = apvts.getRawParameterValue (ParamIDs::bandParam (b, ParamIDs::kQ));
+        auto* typeParam  = apvts.getRawParameterValue (ParamIDs::bandParam (b, ParamIDs::kType));
+        auto* slopeParam = apvts.getRawParameterValue (ParamIDs::bandParam (b, ParamIDs::kSlope));
+        auto* stereoParam = apvts.getRawParameterValue (ParamIDs::bandParam (b, ParamIDs::kStereo));
+
+        auto filterType = static_cast<FilterType> ((int) typeParam->load());
+        double freq  = (double) freqParam->load();
+        double gain  = (double) gainParam->load();
+        double q     = (double) qParam->load();
+        int slopeDB  = slopeIndexToDBPerOct ((int) slopeParam->load());
+        auto placement = static_cast<StereoPlacement> ((int) stereoParam->load());
+
+        // Configure UI-side filter from current parameters (no DSP-layer lag)
+        auto& uiFilter = uiFilters[(size_t) b];
+        uiFilter.prepare (sr);
+        uiFilter.setParameters (filterType, freq, q, gain, slopeDB);
+
+        // Compute magnitude response
+        auto& mags = bandMagnitudes[(size_t) b];
+        for (int i = 0; i < Constants::kCurveResolution; ++i)
+            mags[(size_t) i] = uiFilter.getMagnitudeAtFrequency (frequencyPoints[(size_t) i]);
+
+        // Accumulate into all-bands composite
+        for (int i = 0; i < Constants::kCurveResolution; ++i)
+            compositeMagnitudes[(size_t) i] += mags[(size_t) i];
+
+        // Partition into per-channel buckets
+        switch (placement)
+        {
+            case StereoPlacement::Stereo:
+                for (int i = 0; i < Constants::kCurveResolution; ++i)
+                    stereoAccum[(size_t) i] += mags[(size_t) i];
+                break;
+            case StereoPlacement::Left:
+                hasLeft = true;
+                for (int i = 0; i < Constants::kCurveResolution; ++i)
+                    leftCompositeMagnitudes[(size_t) i] += mags[(size_t) i];
+                break;
+            case StereoPlacement::Right:
+                hasRight = true;
+                for (int i = 0; i < Constants::kCurveResolution; ++i)
+                    rightCompositeMagnitudes[(size_t) i] += mags[(size_t) i];
+                break;
+            case StereoPlacement::Mid:
+                hasMid = true;
+                for (int i = 0; i < Constants::kCurveResolution; ++i)
+                    midCompositeMagnitudes[(size_t) i] += mags[(size_t) i];
+                break;
+            case StereoPlacement::Side:
+                hasSide = true;
+                for (int i = 0; i < Constants::kCurveResolution; ++i)
+                    sideCompositeMagnitudes[(size_t) i] += mags[(size_t) i];
+                break;
+        }
+    }
+
+    // Add stereo base to each active channel composite
+    showPerChannelLR = hasLeft || hasRight;
+    showPerChannelMS = hasMid || hasSide;
+
+    if (showPerChannelLR)
+    {
+        for (int i = 0; i < Constants::kCurveResolution; ++i)
+        {
+            leftCompositeMagnitudes[(size_t) i] += stereoAccum[(size_t) i];
+            rightCompositeMagnitudes[(size_t) i] += stereoAccum[(size_t) i];
+        }
+    }
+
+    if (showPerChannelMS)
+    {
+        for (int i = 0; i < Constants::kCurveResolution; ++i)
+        {
+            midCompositeMagnitudes[(size_t) i] += stereoAccum[(size_t) i];
+            sideCompositeMagnitudes[(size_t) i] += stereoAccum[(size_t) i];
+        }
     }
 }
 
@@ -333,6 +425,13 @@ void EqCurveDisplay::drawBandCurves (juce::Graphics& g)
 
 void EqCurveDisplay::drawCompositeCurve (juce::Graphics& g)
 {
+    // When per-channel curves are active, draw those instead of the single yellow composite
+    if (showPerChannelLR || showPerChannelMS)
+    {
+        drawPerChannelCompositeCurves (g);
+        return;
+    }
+
     float w = (float) getWidth();
 
     juce::Path curvePath;
@@ -366,6 +465,60 @@ void EqCurveDisplay::drawCompositeCurve (juce::Graphics& g)
     // Draw composite curve stroke
     g.setColour (ColourPalette::compositeCurve());
     g.strokePath (curvePath, juce::PathStrokeType (2.0f));
+}
+
+void EqCurveDisplay::drawPerChannelCompositeCurves (juce::Graphics& g)
+{
+    float w = (float) getWidth();
+    float zeroY = gainToY (0.0f);
+
+    // Helper lambda to draw a single per-channel composite curve
+    auto drawChannelCurve = [&] (const std::array<double, Constants::kCurveResolution>& mags,
+                                  juce::Colour colour)
+    {
+        juce::Path curvePath;
+        bool started = false;
+
+        for (int i = 0; i < Constants::kCurveResolution; ++i)
+        {
+            float x = (float) i / (float) (Constants::kCurveResolution - 1) * w;
+            float y = gainToY ((float) mags[(size_t) i]);
+
+            if (! started)
+            {
+                curvePath.startNewSubPath (x, y);
+                started = true;
+            }
+            else
+            {
+                curvePath.lineTo (x, y);
+            }
+        }
+
+        // Fill between curve and 0 dB line
+        juce::Path fillPath (curvePath);
+        fillPath.lineTo (w, zeroY);
+        fillPath.lineTo (0, zeroY);
+        fillPath.closeSubPath();
+        g.setColour (colour.withAlpha (0.08f));
+        g.fillPath (fillPath);
+
+        // Stroke
+        g.setColour (colour);
+        g.strokePath (curvePath, juce::PathStrokeType (2.0f));
+    };
+
+    if (showPerChannelLR)
+    {
+        drawChannelCurve (leftCompositeMagnitudes, ColourPalette::leftColour());
+        drawChannelCurve (rightCompositeMagnitudes, ColourPalette::rightColour());
+    }
+
+    if (showPerChannelMS)
+    {
+        drawChannelCurve (midCompositeMagnitudes, ColourPalette::midColour());
+        drawChannelCurve (sideCompositeMagnitudes, ColourPalette::sideColour());
+    }
 }
 
 void EqCurveDisplay::drawPreviewCurve (juce::Graphics& g)
@@ -480,6 +633,27 @@ void EqCurveDisplay::drawBandHandles (juce::Graphics& g)
             g.setColour (ringColour);
             g.drawEllipse (x - radius - 1.0f, y - radius - 1.0f,
                            (radius + 1.0f) * 2.0f, (radius + 1.0f) * 2.0f, 1.5f);
+
+            // Channel letter label below the handle dot
+            const char* label = nullptr;
+            if (placement == StereoPlacement::Left)       label = "L";
+            else if (placement == StereoPlacement::Right)  label = "R";
+            else if (placement == StereoPlacement::Mid)    label = "M";
+            else if (placement == StereoPlacement::Side)   label = "S";
+
+            if (label != nullptr)
+            {
+                g.setFont (juce::Font (11.0f, juce::Font::bold));
+                auto labelRect = juce::Rectangle<float> (x - 7.0f, y + radius + 2.0f, 14.0f, 13.0f);
+
+                // Dark background pill for contrast
+                g.setColour (juce::Colour (0xcc1a1a2e));
+                g.fillRoundedRectangle (labelRect, 3.0f);
+
+                g.setColour (ringColour);
+                g.drawText (label, labelRect.toNearestInt(),
+                            juce::Justification::centred, false);
+            }
         }
     }
 }

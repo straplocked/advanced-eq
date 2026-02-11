@@ -21,6 +21,7 @@
 #include "../../utils/MathUtils.h"
 #include "../../dsp/FilterTypes.h"
 #include "../../dsp/SVFFilter.h"
+#include "../../dsp/CascadedFilter.h"
 #include "../../analyzer/SpectrumAnalyzer.h"
 #include "../LookAndFeel/ColourPalette.h"
 
@@ -155,6 +156,17 @@ private:
     std::array<double, Constants::kCurveResolution> compositeMagnitudes {};
     std::array<std::array<double, Constants::kCurveResolution>, Constants::kMaxBands> bandMagnitudes {};
 
+    // UI-side filters for lag-free magnitude computation (bypasses DSP-layer smoothing)
+    std::array<CascadedFilter, Constants::kMaxBands> uiFilters;
+
+    // Per-channel composite curves
+    bool showPerChannelLR = false;
+    bool showPerChannelMS = false;
+    std::array<double, Constants::kCurveResolution> leftCompositeMagnitudes {};
+    std::array<double, Constants::kCurveResolution> rightCompositeMagnitudes {};
+    std::array<double, Constants::kCurveResolution> midCompositeMagnitudes {};
+    std::array<double, Constants::kCurveResolution> sideCompositeMagnitudes {};
+
     // Coordinate mapping
     float frequencyToX (float freq) const;
     float xToFrequency (float x) const;
@@ -167,6 +179,7 @@ private:
     void drawGainLabels (juce::Graphics& g);
     void drawBandCurves (juce::Graphics& g);
     void drawCompositeCurve (juce::Graphics& g);
+    void drawPerChannelCompositeCurves (juce::Graphics& g);
     void drawBandHandles (juce::Graphics& g);
     void drawSpectrum (juce::Graphics& g, const SpectrumAnalyzer& analyzer, juce::Colour colour);
     void drawTooltip (juce::Graphics& g);
