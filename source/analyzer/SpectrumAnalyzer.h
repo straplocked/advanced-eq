@@ -82,12 +82,29 @@ public:
      */
     void setSmoothing (float s) { smoothingCoeff = juce::jlimit (0.0f, 0.99f, s); }
 
+    /** Set spectrum tilt slope in dB/octave (0 = off, 4.5 = pink noise compensation). */
+    void setTiltSlope (float slopeDBPerOctave) { tiltSlope = slopeDBPerOctave; }
+
+    /**
+     * Find the nearest spectrum peak to a given frequency.
+     *
+     * Searches the smoothed magnitude data for a local maximum near
+     * the target frequency. Returns the peak frequency, or -1 if no
+     * significant peak is found nearby.
+     *
+     * @param targetFreq  Target frequency in Hz.
+     * @param maxOctaves  Maximum search radius in octaves (default 0.5).
+     * @return Peak frequency in Hz, or -1.0f if none found.
+     */
+    float findNearestPeak (float targetFreq, float maxOctaves = 0.5f) const;
+
 private:
     // Map spectrum dB to Y pixel coordinate.
     // 0 dBFS aligns with the EQ curve's 0 dB gain line (center of display).
     float spectrumDBtoY (float dB, float height) const;
 
     float smoothingCoeff = Constants::kDefaultAnalyzerSmoothing;
+    float tiltSlope = 0.0f; // dB/octave
 
     int numPoints = 0;
     std::vector<float> smoothedMagnitudes;

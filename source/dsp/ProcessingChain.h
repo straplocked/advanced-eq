@@ -41,10 +41,13 @@
 
 #include "EqBand.h"
 #include "FilterTypes.h"
+#include "LinearPhaseEngine.h"
+#include "NaturalPhaseEngine.h"
 #include "../utils/Constants.h"
 #include <juce_audio_basics/juce_audio_basics.h>
 #include <juce_dsp/juce_dsp.h>
 #include <array>
+#include <memory>
 #include <juce_core/juce_core.h>
 
 /**
@@ -115,6 +118,27 @@ public:
     void setOutputGain (float gainDB);
 
     /**
+     * @brief Set the oversampling factor.
+     *
+     * @param factorIndex  0 = 1x (off), 1 = 2x, 2 = 4x.
+     */
+    void setOversamplingFactor (int factorIndex);
+
+    /** Set the processing mode: 0=ZeroLatency (IIR), 1=NaturalPhase, 2=LinearPhase */
+    void setProcessingMode (int mode);
+
+    /**
+     * @brief Compute auto gain compensation in dB.
+     *
+     * Evaluates the composite magnitude response at log-spaced frequencies
+     * across the audible range, computes the RMS energy change, and returns
+     * its inverse in dB so that the overall perceived loudness stays constant.
+     *
+     * @return Compensation gain in dB (negative if EQ is boosting overall).
+     */
+    float computeAutoGainCompensation() const;
+
+    /**
      * @brief Enable or disable analog-mode processing globally.
      *
      * When enabled, activates per-band saturation, inter-channel crosstalk
@@ -124,6 +148,10 @@ public:
      * @param enabled  True to enable analog mode.
      */
     void setAnalogMode (bool enabled);
+
+    /** Set the solo band index (-1 = off, 0-23 = solo that band). */
+    void setSoloBand (int bandIndex);
+    int getSoloBand() const { return soloBandIndex; }
 
     // For UI: compute magnitude responses
 
@@ -160,25 +188,39 @@ public:
     EqBand* getBand (int index);
 
     /**
-     * @brief Report the processing latency introduced by the current mode.
-     *
-     * Currently returns 0 (zero-latency IIR mode). Will return nonzero
-     * once NaturalPhase or LinearPhase modes are implemented.
-     *
+     * @brief Report the processing latency introduced by oversampling and/or phase mode.
      * @return Latency in samples.
      */
-    int getLatencyInSamples() const { return 0; } // Zero latency mode for now
+    int getLatencyInSamples() const;
 
 private:
+    void processBands (juce::AudioBuffer<float>& buffer);
+
     std::array<EqBand, Constants::kMaxBands> bands;
 
     juce::SmoothedValue<float> outputGain { 1.0f };
 
     double sampleRate = 44100.0;
     int maxBlockSize = 512;
+    int numChannels = 2;
 
     // Analog mode state
     bool analogMode = false;
     juce::Random noiseRng;
     float pinkState[2] = { 0.0f, 0.0f };
+
+    // Band solo
+    int soloBandIndex = -1;
+    CascadedFilter soloFilterL;
+    CascadedFilter soloFilterR;
+
+    // Oversampling
+    std::unique_ptr<juce::dsp::Oversampling<float>> oversampler2x;
+    std::unique_ptr<juce::dsp::Oversampling<float>> oversampler4x;
+    int currentOversamplingIndex = 0; // 0=1x, 1=2x, 2=4x
+
+    // Phase modes
+    int currentProcessingMode = 0; // 0=IIR, 1=Natural, 2=Linear
+    LinearPhaseEngine linearPhaseEngine;
+    NaturalPhaseEngine naturalPhaseEngine;
 };

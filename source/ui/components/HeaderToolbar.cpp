@@ -43,7 +43,46 @@ HeaderToolbar::HeaderToolbar (AdvancedEQProcessor& p)
 
     updatePresetName();
 
+    // --- Undo/Redo ---
+    undoButton.setColour (juce::TextButton::buttonColourId, juce::Colours::transparentBlack);
+    undoButton.setColour (juce::TextButton::textColourOffId, ColourPalette::textDim());
+    undoButton.onClick = [this] { processor.getUndoManager().undo(); };
+    addAndMakeVisible (undoButton);
+
+    redoButton.setColour (juce::TextButton::buttonColourId, juce::Colours::transparentBlack);
+    redoButton.setColour (juce::TextButton::textColourOffId, ColourPalette::textDim());
+    redoButton.onClick = [this] { processor.getUndoManager().redo(); };
+    addAndMakeVisible (redoButton);
+
+    // --- A/B Comparison ---
+    abToggleButton.setColour (juce::TextButton::buttonColourId, juce::Colours::transparentBlack);
+    abToggleButton.setColour (juce::TextButton::textColourOffId, ColourPalette::textBright());
+    abToggleButton.onClick = [this]
+    {
+        processor.toggleAB();
+        abToggleButton.setButtonText (processor.isSlotA() ? "A" : "B");
+    };
+    addAndMakeVisible (abToggleButton);
+
+    copyABButton.setColour (juce::TextButton::buttonColourId, juce::Colours::transparentBlack);
+    copyABButton.setColour (juce::TextButton::textColourOffId, ColourPalette::textDim());
+    copyABButton.onClick = [this]
+    {
+        if (processor.isSlotA())
+            processor.copyAtoB();
+        else
+            processor.copyBtoA();
+    };
+    addAndMakeVisible (copyABButton);
+
     // --- Right-side controls ---
+
+    // Phase invert button
+    phaseInvertButton.setClickingTogglesState (true);
+    phaseInvertButton.setColour (juce::TextButton::buttonOnColourId, juce::Colour (0xffff6b6b).withAlpha (0.3f));
+    addAndMakeVisible (phaseInvertButton);
+    phaseInvertAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (
+        apvts, ParamIDs::kPhaseInvert, phaseInvertButton);
 
     analogButton.setClickingTogglesState (true);
     analogButton.setColour (juce::TextButton::buttonOnColourId, ColourPalette::analogAccent().withAlpha (0.3f));
@@ -65,6 +104,15 @@ HeaderToolbar::HeaderToolbar (AdvancedEQProcessor& p)
             onFreezeToggled (freezeButton.getToggleState());
     };
     addAndMakeVisible (freezeButton);
+
+    matchButton.setColour (juce::TextButton::buttonColourId, juce::Colours::transparentBlack);
+    matchButton.setColour (juce::TextButton::textColourOffId, ColourPalette::textDim());
+    matchButton.onClick = [this]
+    {
+        if (onMatchClicked)
+            onMatchClicked();
+    };
+    addAndMakeVisible (matchButton);
 
     processModeSelector.addItemList (ParamIDs::getProcessingModeNames(), 1);
     processModeSelector.setJustificationType (juce::Justification::centred);
@@ -88,6 +136,7 @@ HeaderToolbar::HeaderToolbar (AdvancedEQProcessor& p)
 HeaderToolbar::~HeaderToolbar()
 {
     presetManager.removeListener (this);
+    phaseInvertAttachment.reset();
     analogAttachment.reset();
     analyzerAttachment.reset();
     processModeAttachment.reset();
@@ -143,6 +192,12 @@ void HeaderToolbar::resized()
 
     rightBounds.removeFromRight (6);
 
+    // Match button
+    auto matchArea = rightBounds.removeFromRight (42);
+    matchButton.setBounds (matchArea.withHeight (22).withCentre (matchArea.getCentre()));
+
+    rightBounds.removeFromRight (4);
+
     // Freeze button
     auto freezeArea = rightBounds.removeFromRight (48);
     freezeButton.setBounds (freezeArea.withHeight (22).withCentre (freezeArea.getCentre()));
@@ -158,6 +213,30 @@ void HeaderToolbar::resized()
     // Analog mode button
     auto analogArea = rightBounds.removeFromRight (52);
     analogButton.setBounds (analogArea.withHeight (22).withCentre (analogArea.getCentre()));
+
+    rightBounds.removeFromRight (4);
+
+    // Phase invert button
+    auto phaseArea = rightBounds.removeFromRight (28);
+    phaseInvertButton.setBounds (phaseArea.withHeight (22).withCentre (phaseArea.getCentre()));
+
+    // Undo/Redo buttons
+    rightBounds.removeFromRight (4);
+
+    auto undoArea = rightBounds.removeFromRight (36);
+    undoButton.setBounds (undoArea.withHeight (22).withCentre (undoArea.getCentre()));
+
+    auto redoArea = rightBounds.removeFromRight (36);
+    redoButton.setBounds (redoArea.withHeight (22).withCentre (redoArea.getCentre()));
+
+    rightBounds.removeFromRight (6);
+
+    // A/B buttons
+    auto abArea = rightBounds.removeFromRight (22);
+    abToggleButton.setBounds (abArea.withHeight (22).withCentre (abArea.getCentre()));
+
+    auto copyArea = rightBounds.removeFromRight (30);
+    copyABButton.setBounds (copyArea.withHeight (22).withCentre (copyArea.getCentre()));
 
     // Preset controls in the remaining center space
     auto presetBounds = rightBounds;

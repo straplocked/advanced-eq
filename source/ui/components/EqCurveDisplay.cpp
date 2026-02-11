@@ -697,10 +697,22 @@ void EqCurveDisplay::mouseDown (const juce::MouseEvent& e)
     }
     else
     {
-        // Click on empty space: create new band at this position
-        float freq = xToFrequency (pos.x);
-        float gain = yToGain (pos.y);
-        activateBandAt (freq, gain);
+        // Spectrum grab: check for spectrum peaks near click position
+        float clickFreq = xToFrequency (pos.x);
+        float peakFreq = spectrumAnalyzerPost.findNearestPeak (clickFreq, 0.3f);
+
+        if (peakFreq > 0.0f)
+        {
+            // Create a new band at the spectrum peak frequency, gain = 0 dB (ready to drag)
+            activateBandAt (peakFreq, 0.0f);
+        }
+        else
+        {
+            // Click on empty space: create new band at this position
+            float freq = clickFreq;
+            float gain = yToGain (pos.y);
+            activateBandAt (freq, gain);
+        }
         isDragging = true;
     }
 

@@ -10,11 +10,6 @@
  */
 #pragma once
 
-/**
- * @file HeaderToolbar.h
- * @brief Top toolbar with preset navigation, mode selection, and global controls.
- */
-
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <juce_audio_processors/juce_audio_processors.h>
 #include "../../PluginProcessor.h"
@@ -22,36 +17,21 @@
 #include "../../presets/PresetManager.h"
 #include "../LookAndFeel/ColourPalette.h"
 
-/**
- * @class HeaderToolbar
- * @brief Top toolbar providing preset navigation, processing mode selection, and global controls.
- *
- * Implements PresetManager::Listener to stay synchronized with preset name changes.
- * Contains preset prev/next/save buttons, a process mode selector (stereo, left/right,
- * mid/side), an analog mode toggle, an analyzer toggle, a freeze toggle, and an
- * output gain knob.
- *
- * @see PresetManager, AdvancedEQProcessor
- */
 class HeaderToolbar : public juce::Component,
                       public PresetManager::Listener
 {
 public:
-    /** @brief Constructs the toolbar, connecting to the processor's APVTS and preset manager.
-     *  @param processor The audio processor that owns parameters and preset state.
-     */
     explicit HeaderToolbar (AdvancedEQProcessor& processor);
     ~HeaderToolbar() override;
 
-    /** @brief Paints the toolbar background with a gradient panel surface. */
     void paint (juce::Graphics& g) override;
-
-    /** @brief Lays out preset buttons on the left and control widgets on the right. */
     void resized() override;
 
     // PresetManager::Listener
-    /** @brief Called when the active preset changes; updates the displayed preset name. */
     void presetChanged() override;
+
+    std::function<void (bool)> onFreezeToggled;
+    std::function<void()> onMatchClicked;
 
 private:
     AdvancedEQProcessor& processor;
@@ -63,24 +43,24 @@ private:
     juce::TextButton presetNameButton { "Init" };
     juce::TextButton saveButton { "Save" };
 
+    // Undo/Redo and A/B
+    juce::TextButton undoButton { "Undo" };
+    juce::TextButton redoButton { "Redo" };
+    juce::TextButton abToggleButton { "A" };
+    juce::TextButton copyABButton { "A>B" };
+
     // Right-side controls
+    juce::TextButton phaseInvertButton { juce::String::charToString (0x00D8) }; // Ø symbol
     juce::TextButton analogButton { "Analog" };
     juce::TextButton analyzerButton { "Analyzer" };
     juce::TextButton freezeButton { "Freeze" };
+    juce::TextButton matchButton { "Match" };
     juce::ComboBox processModeSelector;
     juce::Slider outputGainSlider;
     juce::Label outputGainLabel;
 
-    // Callback for freeze toggle
-    public:
-    /** @brief Callback invoked when the freeze button is toggled.
-     *
-     * The parameter is true when freeze is enabled, false when disabled.
-     */
-    std::function<void (bool)> onFreezeToggled;
-    private:
-
     // Attachments
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> phaseInvertAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> analogAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> analyzerAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> processModeAttachment;

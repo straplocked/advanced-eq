@@ -2,11 +2,6 @@
  * Advanced EQ - Open-source parametric equalizer plugin
  * Copyright (C) 2024-2026 Advanced EQ contributors
  * SPDX-License-Identifier: GPL-3.0-or-later
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
  */
 
 #include "EqBand.h"
@@ -15,18 +10,28 @@
 void EqBand::prepare (double sr, int /*maxBlockSize*/)
 {
     sampleRate = sr;
-    filterL.prepare (sr);
-    filterR.prepare (sr);
+
+    for (auto& f : filters)
+        f.prepare (sr);
 
     smoothedFreq.reset (sr, 0.02);  // 20ms smoothing
     smoothedGain.reset (sr, 0.02);
     smoothedQ.reset (sr, 0.02);
+
+    for (auto& e : envFollowers)
+        e.prepare (sr);
+    for (auto& d : dynamicProcs)
+        d.prepare (sr);
 }
 
 void EqBand::reset()
 {
-    filterL.reset();
-    filterR.reset();
+    for (auto& f : filters)
+        f.reset();
+    for (auto& e : envFollowers)
+        e.reset();
+    for (auto& d : dynamicProcs)
+        d.reset();
 }
 
 void EqBand::setAnalogMode (bool enabled)
@@ -54,6 +59,23 @@ void EqBand::updateParameters (const BandParameters& params)
     filterType = params.type;
     stereoPlacement = params.stereoPlacement;
 
+    // Dynamic EQ parameters
+    dynamicEnabled = params.dynamicEnabled;
+    if (dynamicEnabled)
+    {
+        for (auto& e : envFollowers)
+        {
+            e.setAttack (params.dynamicAttack);
+            e.setRelease (params.dynamicRelease);
+            e.setBandFrequency (params.frequency);
+        }
+        for (auto& d : dynamicProcs)
+        {
+            d.setThreshold (params.dynamicThreshold);
+            d.setRange (params.dynamicRange);
+        }
+    }
+
     if (! active)
         return;
 
@@ -70,8 +92,8 @@ void EqBand::updateParameters (const BandParameters& params)
     if (analogMode && params.type == FilterType::Bell)
         q *= (1.0f + 0.4f * std::abs (gain) / 30.0f);
 
-    filterL.setParameters (params.type, freq, q, gain, params.slopeDBPerOct);
-    filterR.setParameters (params.type, freq, q, gain, params.slopeDBPerOct);
+    for (auto& f : filters)
+        f.setParameters (params.type, freq, q, gain, params.slopeDBPerOct);
 
     needsUpdate = false;
 }
@@ -81,10 +103,13 @@ void EqBand::process (juce::AudioBuffer<float>& buffer, int numSamples)
     if (! active)
         return;
 
-    // Check if parameters are still smoothing
-    if (smoothedFreq.isSmoothing() || smoothedGain.isSmoothing() || smoothedQ.isSmoothing())
+    bool isSmoothing = smoothedFreq.isSmoothing() || smoothedGain.isSmoothing() || smoothedQ.isSmoothing();
+
+    int numChannels = juce::jmin (buffer.getNumChannels(), kMaxChannels);
+
+    // Dynamic EQ: per-sample processing when enabled
+    if (dynamicEnabled || isSmoothing)
     {
-        // Process sample by sample for smooth transitions
         for (int i = 0; i < numSamples; ++i)
         {
             float freq = smoothedFreq.getNextValue();
@@ -94,28 +119,42 @@ void EqBand::process (juce::AudioBuffer<float>& buffer, int numSamples)
             if (analogMode && filterType == FilterType::Bell)
                 q *= (1.0f + 0.4f * std::abs (gain) / 30.0f);
 
-            filterL.setParameters (filterType, freq, q, gain, currentParams.slopeDBPerOct);
-            filterR.setParameters (filterType, freq, q, gain, currentParams.slopeDBPerOct);
+            // Dynamic gain modulation
+            if (dynamicEnabled)
+            {
+                // Average envelope across all channels
+                float dynGainSum = 0.0f;
+                for (int ch = 0; ch < numChannels; ++ch)
+                {
+                    float env = envFollowers[ch].processSample (buffer.getReadPointer (ch)[i]);
+                    dynGainSum += dynamicProcs[ch].computeGainDB (env);
+                }
+                float dynGainAvg = dynGainSum / (float) numChannels;
+                float modulatedGain = gain + dynGainAvg;
 
-            if (buffer.getNumChannels() > 0)
-            {
-                float* dataL = buffer.getWritePointer (0);
-                dataL[i] = filterL.processSample (dataL[i]);
+                for (int ch = 0; ch < numChannels; ++ch)
+                    filters[ch].setParameters (filterType, freq, q, modulatedGain, currentParams.slopeDBPerOct);
+
+                dynamicGainReduction.store (dynGainAvg, std::memory_order_relaxed);
             }
-            if (buffer.getNumChannels() > 1)
+            else
             {
-                float* dataR = buffer.getWritePointer (1);
-                dataR[i] = filterR.processSample (dataR[i]);
+                for (int ch = 0; ch < numChannels; ++ch)
+                    filters[ch].setParameters (filterType, freq, q, gain, currentParams.slopeDBPerOct);
+            }
+
+            for (int ch = 0; ch < numChannels; ++ch)
+            {
+                float* data = buffer.getWritePointer (ch);
+                data[i] = filters[ch].processSample (data[i]);
             }
         }
     }
     else
     {
         // Block processing (more efficient when parameters are stable)
-        if (buffer.getNumChannels() > 0)
-            filterL.process (buffer.getWritePointer (0), numSamples);
-        if (buffer.getNumChannels() > 1)
-            filterR.process (buffer.getWritePointer (1), numSamples);
+        for (int ch = 0; ch < numChannels; ++ch)
+            filters[ch].process (buffer.getWritePointer (ch), numSamples);
     }
 
     // Per-band analog saturation
@@ -135,7 +174,9 @@ void EqBand::processSingleChannel (float* channelData, int numSamples)
     if (! active)
         return;
 
-    if (smoothedFreq.isSmoothing() || smoothedGain.isSmoothing() || smoothedQ.isSmoothing())
+    bool isSmoothing = smoothedFreq.isSmoothing() || smoothedGain.isSmoothing() || smoothedQ.isSmoothing();
+
+    if (dynamicEnabled || isSmoothing)
     {
         for (int i = 0; i < numSamples; ++i)
         {
@@ -146,7 +187,19 @@ void EqBand::processSingleChannel (float* channelData, int numSamples)
             if (analogMode && filterType == FilterType::Bell)
                 q *= (1.0f + 0.4f * std::abs (gain) / 30.0f);
 
-            filterL.setParameters (filterType, freq, q, gain, currentParams.slopeDBPerOct);
+            if (dynamicEnabled)
+            {
+                float env = envFollowerL.processSample (channelData[i]);
+                float dynGain = dynamicProcL.computeGainDB (env);
+                float modulatedGain = gain + dynGain;
+
+                filterL.setParameters (filterType, freq, q, modulatedGain, currentParams.slopeDBPerOct);
+                dynamicGainReduction.store (dynGain, std::memory_order_relaxed);
+            }
+            else
+            {
+                filterL.setParameters (filterType, freq, q, gain, currentParams.slopeDBPerOct);
+            }
 
             channelData[i] = filterL.processSample (channelData[i]);
         }
@@ -157,6 +210,57 @@ void EqBand::processSingleChannel (float* channelData, int numSamples)
     }
 
     // Per-band analog saturation
+    if (analogMode)
+    {
+        for (int i = 0; i < numSamples; ++i)
+            channelData[i] = saturate (channelData[i]);
+    }
+}
+
+void EqBand::processChannel (float* channelData, int numSamples, int channelIndex)
+{
+    if (! active || channelIndex < 0 || channelIndex >= kMaxChannels)
+        return;
+
+    auto& filter = filters[channelIndex];
+
+    bool isSmoothing = smoothedFreq.isSmoothing() || smoothedGain.isSmoothing() || smoothedQ.isSmoothing();
+
+    if (dynamicEnabled || isSmoothing)
+    {
+        auto& envFollower = envFollowers[channelIndex];
+        auto& dynamicProc = dynamicProcs[channelIndex];
+
+        for (int i = 0; i < numSamples; ++i)
+        {
+            float freq = smoothedFreq.getNextValue();
+            float gain = smoothedGain.getNextValue();
+            float q = smoothedQ.getNextValue();
+
+            if (analogMode && filterType == FilterType::Bell)
+                q *= (1.0f + 0.4f * std::abs (gain) / 30.0f);
+
+            if (dynamicEnabled)
+            {
+                float env = envFollower.processSample (channelData[i]);
+                float dynGain = dynamicProc.computeGainDB (env);
+                float modulatedGain = gain + dynGain;
+                filter.setParameters (filterType, freq, q, modulatedGain, currentParams.slopeDBPerOct);
+                dynamicGainReduction.store (dynGain, std::memory_order_relaxed);
+            }
+            else
+            {
+                filter.setParameters (filterType, freq, q, gain, currentParams.slopeDBPerOct);
+            }
+
+            channelData[i] = filter.processSample (channelData[i]);
+        }
+    }
+    else
+    {
+        filter.process (channelData, numSamples);
+    }
+
     if (analogMode)
     {
         for (int i = 0; i < numSamples; ++i)

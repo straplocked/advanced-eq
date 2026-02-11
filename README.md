@@ -4,14 +4,44 @@
 
 ## Features
 
+### Core EQ Engine
 - **24-band parametric EQ** with interactive curve display
 - **9 filter types:** Bell, Low Shelf, High Shelf, Low Pass, High Pass, Notch, Band Pass, Tilt Shelf, Flat Tilt
 - **10 slope options:** 6, 12, 18, 24, 36, 48, 72, 96 dB/oct, and Brickwall
-- **Real-time spectrum analyzer** with pre/post EQ views and freeze mode
+- **Oversampling:** 1x, 2x, and 4x modes for reduced aliasing
+- **3 processing modes:** Zero Latency (IIR), Natural Phase (mixed-phase FIR), Linear Phase (symmetric FIR)
+- **Auto gain compensation:** maintains perceived loudness across EQ adjustments
+
+### Dynamic EQ
+- **Per-band dynamics** with envelope follower and bidirectional gain modulation
+- **Configurable attack/release** with frequency-adaptive time constants
+- **Threshold and range controls** for compression (negative range) and expansion (positive range)
+
+### Analysis & Matching
+- **Real-time spectrum analyzer** with pre/post EQ views, freeze mode, and configurable resolution (1024/2048/4096/8192)
+- **Spectrum tilt compensation** for pink noise reference display
+- **EQ Match:** capture reference and current spectra, auto-fit Bell bands to match the difference
+- **Spectrum Grab:** click near analyzer peaks to snap new bands to spectral content
+
+### Routing & Surround
 - **Per-band stereo placement:** Stereo, Left, Right, Mid, Side
-- **Analog mode** with proportional Q, soft saturation, channel crosstalk, and noise floor
+- **Surround support:** mono, stereo, 5.1, 7.1, and 7.1.4 (Atmos) bus layouts
+- **Phase inversion** toggle
+
+### Workflow
+- **Undo/Redo** with Cmd+Z / Cmd+Shift+Z keyboard shortcuts
+- **A/B comparison** with state snapshot toggle and copy
+- **Band solo** monitor mode for isolating individual band contributions
+- **MIDI Learn** -- map any CC to any parameter with learn mode
+- **Inter-instance collision detection** -- highlights overlapping bands between plugin instances
 - **57 factory presets** across Instruments, Bus, and Mastering categories, plus user preset save/load
-- **Interactive curve UI** -- click to create bands, drag to adjust, scroll to change Q, double-click to remove
+
+### UI
+- **Interactive curve** -- click to create bands, drag to adjust, scroll to change Q, double-click to remove
+- **Piano overlay** with note markers along the frequency axis
+- **Output level meter** with peak and RMS display
+- **Window size presets:** Mini, Small, Medium, Large, XL
+- **Analog mode** with proportional Q, soft saturation, channel crosstalk, and noise floor
 - **Studio rack gear visual design** with dark theme
 
 ## Plugin Formats
@@ -21,7 +51,10 @@
 | VST3       | Yes   | Yes     | Yes   |
 | AU         | Yes   | --      | --    |
 | CLAP       | Yes   | Yes     | Yes   |
+| AAX        | Yes*  | Yes*    | --    |
 | Standalone | Yes   | Yes     | Yes   |
+
+*AAX requires the Avid AAX SDK (set `AAX_SDK_PATH` in CMake).
 
 ## Building
 
@@ -68,26 +101,41 @@ git submodule update --init --recursive
 ## Architecture
 
 ```
-Audio Input
+Audio Input (mono / stereo / 5.1 / 7.1 / 7.1.4)
     |
     v
-[Pre-EQ FFT] -------> Spectrum Analyzer (UI)
+[MIDI Learn] ---------> CC-to-parameter mapping
     |
     v
-ProcessingChain
-    |--- Pass 1: Stereo bands (both channels)
-    |--- Pass 2: Left-only bands
-    |--- Pass 3: Right-only bands
-    '--- Pass 4: Mid/Side encode -> Mid bands -> Side bands -> decode
+[Pre-EQ FFT] ---------> Spectrum Analyzer (UI)
     |
     v
-[Analog Mode]  saturation / crosstalk / noise floor
+ProcessingChain  (mode: IIR / Natural Phase / Linear Phase)
+    |
+    |--- IIR Mode (zero latency):
+    |       |--- [Optional 2x/4x Oversampling]
+    |       |--- Pass 1: Stereo bands (all channels)
+    |       |--- Pass 2: Left-only bands
+    |       |--- Pass 3: Right-only bands
+    |       '--- Pass 4: Mid/Side encode -> Mid bands -> Side bands -> decode
+    |       |--- [Band Solo monitor filter]
+    |       '--- [Analog Mode: saturation / crosstalk / noise floor]
+    |
+    |--- Natural Phase Mode (FIR, mixed-phase, ~23ms latency)
+    |
+    '--- Linear Phase Mode (FIR, symmetric, ~93ms latency)
     |
     v
-[Output Gain]
+[Auto Gain Compensation]
     |
     v
-[Post-EQ FFT] ------> Spectrum Analyzer (UI)
+[Output Gain + Phase Inversion]
+    |
+    v
+[Post-EQ FFT] --------> Spectrum Analyzer (UI)
+    |
+    v
+[Level Meter] ---------> Peak + RMS display
     |
     v
 Audio Output
@@ -105,20 +153,25 @@ See [docs/architecture.md](docs/architecture.md) for full details.
 
 ```
 advanced-eq/
-├── Source/
+├── source/
 │   ├── PluginProcessor.h/cpp    # Audio processor entry point
 │   ├── PluginEditor.h/cpp       # UI editor entry point
 │   ├── dsp/                     # DSP engine
 │   │   ├── SVFFilter            # Cytomic TPT state variable filter
 │   │   ├── CascadedFilter       # Multi-section cascading for slopes
-│   │   ├── EqBand               # Single EQ band with smoothing
-│   │   ├── ProcessingChain      # Orchestrates all 24 bands
+│   │   ├── EqBand               # Single EQ band (N-channel, dynamic EQ)
+│   │   ├── ProcessingChain      # Orchestrates all 24 bands + oversampling
+│   │   ├── LinearPhaseEngine    # FIR convolution (linear phase mode)
+│   │   ├── NaturalPhaseEngine   # Mixed-phase FIR (natural phase mode)
+│   │   ├── EnvelopeFollower     # Ballistic peak/RMS envelope detector
+│   │   ├── DynamicProcessor     # Bidirectional dynamic gain computation
+│   │   ├── EQMatcher            # Spectrum matching algorithm
 │   │   ├── FilterTypes          # Enums and slope utilities
 │   │   ├── BiquadCoefficients   # Biquad coefficient math
 │   │   └── MidSideProcessor     # Mid/Side encode/decode
 │   ├── analyzer/                # Spectrum analysis
-│   │   ├── FFTProcessor         # Windowed FFT on audio thread
-│   │   ├── SpectrumAnalyzer     # Log-frequency resampling for UI
+│   │   ├── FFTProcessor         # Multi-resolution windowed FFT + capture
+│   │   ├── SpectrumAnalyzer     # Log-frequency resampling + peak detection
 │   │   └── TripleBuffer         # Lock-free audio-to-UI transfer
 │   ├── parameters/              # Parameter management
 │   │   ├── ParameterIDs         # ID naming conventions
@@ -128,12 +181,19 @@ advanced-eq/
 │   │   ├── PresetManager        # Load/save/navigate presets
 │   │   ├── FactoryPresets       # 57 built-in presets
 │   │   └── PresetData           # Preset data structures
+│   ├── midi/                    # MIDI integration
+│   │   └── MidiLearnManager     # CC-to-parameter mapping with learn mode
+│   ├── ipc/                     # Inter-process communication
+│   │   └── InstanceRegistry     # Cross-instance collision detection
 │   ├── ui/                      # User interface
 │   │   ├── components/
-│   │   │   ├── EqCurveDisplay   # Interactive EQ curve + spectrum
-│   │   │   ├── HeaderToolbar    # Presets, mode, analyzer controls
-│   │   │   ├── BottomControlStrip  # Band parameter knobs
-│   │   │   └── BandControlPanel # Filter type/slope selector
+│   │   │   ├── EqCurveDisplay   # Interactive EQ curve + spectrum grab
+│   │   │   ├── HeaderToolbar    # Presets, mode, undo/redo, A/B, match
+│   │   │   ├── BottomControlStrip  # Band parameter + dynamic EQ knobs
+│   │   │   ├── BandControlPanel # Filter type/slope selector
+│   │   │   ├── EQMatchPanel     # EQ Match workflow UI
+│   │   │   ├── LevelMeter       # Peak + RMS output meter
+│   │   │   └── PianoOverlay     # Note name markers on frequency axis
 │   │   └── LookAndFeel/
 │   │       ├── AdvancedEqLookAndFeel  # Custom widget rendering
 │   │       └── ColourPalette    # Centralized color scheme

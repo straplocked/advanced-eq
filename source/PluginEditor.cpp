@@ -2,11 +2,6 @@
  * Advanced EQ - Open-source parametric equalizer plugin
  * Copyright (C) 2024-2026 Advanced EQ contributors
  * SPDX-License-Identifier: GPL-3.0-or-later
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
  */
 
 #include "PluginEditor.h"
@@ -17,15 +12,19 @@
 
 AdvancedEQEditor::AdvancedEQEditor (AdvancedEQProcessor& p)
     : AudioProcessorEditor (&p),
+      processorRef (p),
       headerToolbar (p),
       curveDisplay (p),
-      controlStrip (p)
+      controlStrip (p),
+      levelMeter (p),
+      matchPanel (p)
 {
     setLookAndFeel (&lookAndFeel);
 
     addAndMakeVisible (headerToolbar);
     addAndMakeVisible (curveDisplay);
     addAndMakeVisible (controlStrip);
+    addAndMakeVisible (levelMeter);
 
     // Wire band selection callback to bottom control strip
     curveDisplay.onBandSelected = [this] (int band)
@@ -39,6 +38,18 @@ AdvancedEQEditor::AdvancedEQEditor (AdvancedEQProcessor& p)
         curveDisplay.setAnalyzerFrozen (frozen);
     };
 
+    // Wire match button
+    headerToolbar.onMatchClicked = [this]
+    {
+        matchPanel.setVisible (! matchPanel.isVisible());
+    };
+
+    // Match panel (initially hidden, overlaid on curve display)
+    addChildComponent (matchPanel);
+
+    // Register keyboard listener for undo/redo
+    addKeyListener (this);
+
     setSize (Constants::kDefaultEditorWidth, Constants::kDefaultEditorHeight);
     setResizable (true, true);
     setResizeLimits (750, 450, 1920, 1080);
@@ -46,6 +57,7 @@ AdvancedEQEditor::AdvancedEQEditor (AdvancedEQProcessor& p)
 
 AdvancedEQEditor::~AdvancedEQEditor()
 {
+    removeKeyListener (this);
     setLookAndFeel (nullptr);
 }
 
@@ -60,5 +72,50 @@ void AdvancedEQEditor::resized()
 
     headerToolbar.setBounds (bounds.removeFromTop (36));
     controlStrip.setBounds (bounds.removeFromBottom (90));
+
+    // Level meter on the right edge
+    levelMeter.setBounds (bounds.removeFromRight (20));
+
     curveDisplay.setBounds (bounds);
+
+    // Match panel overlay (centered on curve display)
+    auto curveBounds = curveDisplay.getBounds();
+    int panelW = 300;
+    int panelH = 140;
+    matchPanel.setBounds (curveBounds.getCentreX() - panelW / 2,
+                          curveBounds.getCentreY() - panelH / 2,
+                          panelW, panelH);
+}
+
+bool AdvancedEQEditor::keyPressed (const juce::KeyPress& key, juce::Component*)
+{
+    auto commandKey = juce::ModifierKeys::commandModifier;
+
+    // Cmd+Z = Undo
+    if (key == juce::KeyPress ('z', commandKey, 0))
+    {
+        processorRef.getUndoManager().undo();
+        return true;
+    }
+
+    // Cmd+Shift+Z = Redo
+    if (key == juce::KeyPress ('z', commandKey | juce::ModifierKeys::shiftModifier, 0))
+    {
+        processorRef.getUndoManager().redo();
+        return true;
+    }
+
+    return false;
+}
+
+void AdvancedEQEditor::setWindowSizePreset (WindowSizePreset preset)
+{
+    switch (preset)
+    {
+        case Mini:   setSize (750, 450); break;
+        case Small:  setSize (850, 510); break;
+        case Medium: setSize (1000, 600); break;
+        case Large:  setSize (1200, 720); break;
+        case XL:     setSize (1500, 900); break;
+    }
 }

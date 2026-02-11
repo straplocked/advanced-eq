@@ -13,24 +13,129 @@
 #include "MidSideProcessor.h"
 #include "../utils/MathUtils.h"
 
-void ProcessingChain::prepare (double sr, int maxBlock, int /*numChannels*/)
+void ProcessingChain::prepare (double sr, int maxBlock, int numCh)
 {
     sampleRate = sr;
     maxBlockSize = maxBlock;
+    numChannels = numCh;
 
     for (auto& band : bands)
         band.prepare (sr, maxBlock);
 
     outputGain.reset (sr, 0.02); // 20ms smoothing
+
+    // Pre-create oversampling objects (2x and 4x)
+    oversampler2x = std::make_unique<juce::dsp::Oversampling<float>> (
+        numCh, 1, // factor 1 = 2x oversampling
+        juce::dsp::Oversampling<float>::filterHalfBandPolyphaseIIR, true);
+    oversampler2x->initProcessing ((size_t) maxBlock);
+
+    oversampler4x = std::make_unique<juce::dsp::Oversampling<float>> (
+        numCh, 2, // factor 2 = 4x oversampling
+        juce::dsp::Oversampling<float>::filterHalfBandPolyphaseIIR, true);
+    oversampler4x->initProcessing ((size_t) maxBlock);
+
+    currentOversamplingIndex = 0;
+
+    // Phase engines
+    linearPhaseEngine.prepare (sr, maxBlock, numCh);
+    naturalPhaseEngine.prepare (sr, maxBlock, numCh);
+
+    auto magCallback = [this] (const double* frequencies, double* magnitudes, int numPoints)
+    {
+        computeCompositeMagnitude (frequencies, magnitudes, numPoints);
+    };
+
+    linearPhaseEngine.setMagnitudeCallback (magCallback);
+    naturalPhaseEngine.setMagnitudeCallback (magCallback);
 }
 
 void ProcessingChain::reset()
 {
     for (auto& band : bands)
         band.reset();
+
+    if (oversampler2x) oversampler2x->reset();
+    if (oversampler4x) oversampler4x->reset();
 }
 
-void ProcessingChain::process (juce::AudioBuffer<float>& buffer)
+void ProcessingChain::setOversamplingFactor (int factorIndex)
+{
+    factorIndex = juce::jlimit (0, 2, factorIndex);
+
+    if (factorIndex == currentOversamplingIndex)
+        return;
+
+    currentOversamplingIndex = factorIndex;
+
+    // Re-prepare bands at the oversampled rate
+    int multiplier = 1 << factorIndex;
+    double effectiveRate = sampleRate * multiplier;
+    int effectiveBlockSize = maxBlockSize * multiplier;
+
+    for (auto& band : bands)
+        band.prepare (effectiveRate, effectiveBlockSize);
+}
+
+float ProcessingChain::computeAutoGainCompensation() const
+{
+    constexpr int numFreqs = 31;
+    double frequencies[numFreqs];
+    double magnitudes[numFreqs];
+
+    // Log-spaced frequencies from 20 Hz to 20 kHz
+    for (int i = 0; i < numFreqs; ++i)
+    {
+        double t = (double) i / (double) (numFreqs - 1);
+        frequencies[i] = 20.0 * std::pow (1000.0, t); // 20 Hz to 20 kHz
+    }
+
+    computeCompositeMagnitude (frequencies, magnitudes, numFreqs);
+
+    // Compute RMS energy offset: convert dB magnitudes to power, average, back to dB
+    double sumPower = 0.0;
+    for (int i = 0; i < numFreqs; ++i)
+    {
+        double linearGain = std::pow (10.0, magnitudes[i] / 20.0);
+        sumPower += linearGain * linearGain;
+    }
+
+    double avgPower = sumPower / numFreqs;
+    double rmsGainDB = 10.0 * std::log10 (std::max (avgPower, 1e-10));
+
+    return (float) -rmsGainDB;
+}
+
+void ProcessingChain::setProcessingMode (int mode)
+{
+    mode = juce::jlimit (0, 2, mode);
+    if (mode == currentProcessingMode)
+        return;
+
+    currentProcessingMode = mode;
+
+    if (mode == 1)
+        naturalPhaseEngine.requestKernelUpdate();
+    else if (mode == 2)
+        linearPhaseEngine.requestKernelUpdate();
+}
+
+int ProcessingChain::getLatencyInSamples() const
+{
+    if (currentProcessingMode == 1)
+        return naturalPhaseEngine.getLatencyInSamples();
+    if (currentProcessingMode == 2)
+        return linearPhaseEngine.getLatencyInSamples();
+
+    // IIR mode: oversampling latency only
+    if (currentOversamplingIndex == 1 && oversampler2x)
+        return (int) oversampler2x->getLatencyInSamples();
+    if (currentOversamplingIndex == 2 && oversampler4x)
+        return (int) oversampler4x->getLatencyInSamples();
+    return 0;
+}
+
+void ProcessingChain::processBands (juce::AudioBuffer<float>& buffer)
 {
     int numSamples = buffer.getNumSamples();
     bool isStereo = buffer.getNumChannels() >= 2;
@@ -90,6 +195,23 @@ void ProcessingChain::process (juce::AudioBuffer<float>& buffer)
         }
     }
 
+    // Band solo: apply monitor bandpass after normal processing
+    if (soloBandIndex >= 0 && soloBandIndex < Constants::kMaxBands)
+    {
+        auto& band = bands[(size_t) soloBandIndex];
+        if (band.isActive())
+        {
+            auto params = band.getCurrentParams();
+            soloFilterL.setParameters (FilterType::BandPass, params.frequency, params.q, 0.0, 12);
+            soloFilterR.setParameters (FilterType::BandPass, params.frequency, params.q, 0.0, 12);
+
+            if (buffer.getNumChannels() > 0)
+                soloFilterL.process (buffer.getWritePointer (0), numSamples);
+            if (buffer.getNumChannels() > 1)
+                soloFilterR.process (buffer.getWritePointer (1), numSamples);
+        }
+    }
+
     // Analog mode: crosstalk + noise floor
     if (analogMode && isStereo)
     {
@@ -128,8 +250,88 @@ void ProcessingChain::process (juce::AudioBuffer<float>& buffer)
             data[i] += pinkState[0] * noiseLevel;
         }
     }
+}
 
-    // Apply output gain
+void ProcessingChain::process (juce::AudioBuffer<float>& buffer)
+{
+    // Linear/Natural phase modes use FIR convolution instead of IIR bands
+    if (currentProcessingMode == 2) // Linear Phase
+    {
+        linearPhaseEngine.process (buffer);
+
+        // Apply output gain after convolution
+        int numSamples = buffer.getNumSamples();
+        if (outputGain.isSmoothing())
+        {
+            for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
+            {
+                float* data = buffer.getWritePointer (ch);
+                for (int i = 0; i < numSamples; ++i)
+                    data[i] *= outputGain.getNextValue();
+            }
+        }
+        else
+        {
+            float gainValue = outputGain.getCurrentValue();
+            if (std::abs (gainValue - 1.0f) > 1e-6f)
+                buffer.applyGain (gainValue);
+        }
+        return;
+    }
+
+    if (currentProcessingMode == 1) // Natural Phase
+    {
+        naturalPhaseEngine.process (buffer);
+
+        int numSamples = buffer.getNumSamples();
+        if (outputGain.isSmoothing())
+        {
+            for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
+            {
+                float* data = buffer.getWritePointer (ch);
+                for (int i = 0; i < numSamples; ++i)
+                    data[i] *= outputGain.getNextValue();
+            }
+        }
+        else
+        {
+            float gainValue = outputGain.getCurrentValue();
+            if (std::abs (gainValue - 1.0f) > 1e-6f)
+                buffer.applyGain (gainValue);
+        }
+        return;
+    }
+
+    // Zero-latency IIR mode with optional oversampling
+    if (currentOversamplingIndex > 0)
+    {
+        auto* oversampler = (currentOversamplingIndex == 1) ? oversampler2x.get()
+                                                            : oversampler4x.get();
+        juce::dsp::AudioBlock<float> inputBlock (buffer);
+        auto oversampledBlock = oversampler->processSamplesUp (inputBlock);
+
+        int osChannels = (int) oversampledBlock.getNumChannels();
+        int osSamples = (int) oversampledBlock.getNumSamples();
+
+        // Wrap the oversampled block data in an AudioBuffer (zero-copy)
+        float* channelPtrs[2] = { nullptr, nullptr };
+        for (int ch = 0; ch < juce::jmin (osChannels, 2); ++ch)
+            channelPtrs[ch] = oversampledBlock.getChannelPointer ((size_t) ch);
+
+        juce::AudioBuffer<float> osBuffer (channelPtrs, osChannels, osSamples);
+
+        processBands (osBuffer);
+
+        oversampler->processSamplesDown (inputBlock);
+    }
+    else
+    {
+        processBands (buffer);
+    }
+
+    // Apply output gain (always at original sample rate, after downsampling)
+    int numSamples = buffer.getNumSamples();
+
     if (outputGain.isSmoothing())
     {
         for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
@@ -150,7 +352,15 @@ void ProcessingChain::process (juce::AudioBuffer<float>& buffer)
 void ProcessingChain::updateBand (int bandIndex, const BandParameters& params)
 {
     if (bandIndex >= 0 && bandIndex < Constants::kMaxBands)
+    {
         bands[(size_t) bandIndex].updateParameters (params);
+
+        // Trigger kernel rebuild in phase modes when band parameters change
+        if (currentProcessingMode == 1)
+            naturalPhaseEngine.requestKernelUpdate();
+        else if (currentProcessingMode == 2)
+            linearPhaseEngine.requestKernelUpdate();
+    }
 }
 
 void ProcessingChain::setOutputGain (float gainDB)
@@ -163,6 +373,25 @@ void ProcessingChain::setAnalogMode (bool enabled)
     analogMode = enabled;
     for (auto& band : bands)
         band.setAnalogMode (enabled);
+}
+
+void ProcessingChain::setSoloBand (int bandIndex)
+{
+    if (bandIndex == soloBandIndex)
+        return;
+
+    soloBandIndex = bandIndex;
+
+    if (soloBandIndex >= 0 && soloBandIndex < Constants::kMaxBands)
+    {
+        // Configure solo monitor bandpass filter at the soloed band's frequency/Q
+        auto& band = bands[(size_t) soloBandIndex];
+        auto params = band.getCurrentParams();
+        soloFilterL.prepare (sampleRate);
+        soloFilterR.prepare (sampleRate);
+        soloFilterL.setParameters (FilterType::BandPass, params.frequency, params.q, 0.0, 12);
+        soloFilterR.setParameters (FilterType::BandPass, params.frequency, params.q, 0.0, 12);
+    }
 }
 
 void ProcessingChain::computeCompositeMagnitude (const double* frequencies,

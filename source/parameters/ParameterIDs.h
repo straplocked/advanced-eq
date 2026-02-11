@@ -68,6 +68,7 @@ namespace ParamIDs
     constexpr const char* kAnalyzerRes = "analyzer_res";
     constexpr const char* kAnalyzerSpd = "analyzer_speed";
     constexpr const char* kAnalogMode  = "analog_mode";
+    constexpr const char* kPhaseInvert = "phase_invert";
 
     /**
      * @brief Returns the display names for all filter types.

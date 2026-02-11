@@ -2,11 +2,6 @@
  * Advanced EQ - Open-source parametric equalizer plugin
  * Copyright (C) 2024-2026 Advanced EQ contributors
  * SPDX-License-Identifier: GPL-3.0-or-later
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
  */
 
 #include "BottomControlStrip.h"
@@ -71,6 +66,37 @@ BottomControlStrip::BottomControlStrip (AdvancedEQProcessor& p)
     addChildComponent (gainLabel);
     addChildComponent (qLabel);
 
+    // Dynamic EQ controls
+    dynEnableButton.setClickingTogglesState (true);
+    dynEnableButton.setColour (juce::TextButton::buttonOnColourId, juce::Colour (0xffff9e6b).withAlpha (0.3f));
+    addChildComponent (dynEnableButton);
+
+    auto setupDynKnob = [] (juce::Slider& slider)
+    {
+        slider.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
+        slider.setTextBoxStyle (juce::Slider::NoTextBox, true, 0, 0);
+    };
+
+    setupDynKnob (dynThreshSlider);
+    setupDynKnob (dynRangeSlider);
+    setupDynKnob (dynAttackSlider);
+    setupDynKnob (dynReleaseSlider);
+
+    addChildComponent (dynThreshSlider);
+    addChildComponent (dynRangeSlider);
+    addChildComponent (dynAttackSlider);
+    addChildComponent (dynReleaseSlider);
+
+    setupLabel (dynThreshLabel);
+    setupLabel (dynRangeLabel);
+    setupLabel (dynAttackLabel);
+    setupLabel (dynReleaseLabel);
+
+    addChildComponent (dynThreshLabel);
+    addChildComponent (dynRangeLabel);
+    addChildComponent (dynAttackLabel);
+    addChildComponent (dynReleaseLabel);
+
     startTimerHz (10);
 }
 
@@ -82,6 +108,11 @@ BottomControlStrip::~BottomControlStrip()
     typeAttachment.reset();
     slopeAttachment.reset();
     stereoAttachment.reset();
+    dynEnableAttachment.reset();
+    dynThreshAttachment.reset();
+    dynRangeAttachment.reset();
+    dynAttackAttachment.reset();
+    dynReleaseAttachment.reset();
 }
 
 void BottomControlStrip::setSelectedBand (int bandIndex)
@@ -100,6 +131,11 @@ void BottomControlStrip::setSelectedBand (int bandIndex)
         typeAttachment.reset();
         slopeAttachment.reset();
         stereoAttachment.reset();
+        dynEnableAttachment.reset();
+        dynThreshAttachment.reset();
+        dynRangeAttachment.reset();
+        dynAttackAttachment.reset();
+        dynReleaseAttachment.reset();
     }
     else
     {
@@ -126,6 +162,17 @@ void BottomControlStrip::setControlsVisible (bool visible)
     freqLabel.setVisible (visible);
     gainLabel.setVisible (visible);
     qLabel.setVisible (visible);
+
+    // Dynamic EQ controls
+    dynEnableButton.setVisible (visible);
+    dynThreshSlider.setVisible (visible);
+    dynRangeSlider.setVisible (visible);
+    dynAttackSlider.setVisible (visible);
+    dynReleaseSlider.setVisible (visible);
+    dynThreshLabel.setVisible (visible);
+    dynRangeLabel.setVisible (visible);
+    dynAttackLabel.setVisible (visible);
+    dynReleaseLabel.setVisible (visible);
 }
 
 void BottomControlStrip::updateAttachments()
@@ -139,6 +186,11 @@ void BottomControlStrip::updateAttachments()
     typeAttachment.reset();
     slopeAttachment.reset();
     stereoAttachment.reset();
+    dynEnableAttachment.reset();
+    dynThreshAttachment.reset();
+    dynRangeAttachment.reset();
+    dynAttackAttachment.reset();
+    dynReleaseAttachment.reset();
 
     if (selectedBand < 0)
         return;
@@ -160,6 +212,22 @@ void BottomControlStrip::updateAttachments()
 
     qAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
         apvts, ParamIDs::bandParam (selectedBand, ParamIDs::kQ), qSlider);
+
+    // Dynamic EQ
+    dynEnableAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (
+        apvts, ParamIDs::bandParam (selectedBand, ParamIDs::kDynEnabled), dynEnableButton);
+
+    dynThreshAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
+        apvts, ParamIDs::bandParam (selectedBand, ParamIDs::kDynThresh), dynThreshSlider);
+
+    dynRangeAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
+        apvts, ParamIDs::bandParam (selectedBand, ParamIDs::kDynRange), dynRangeSlider);
+
+    dynAttackAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
+        apvts, ParamIDs::bandParam (selectedBand, ParamIDs::kDynAttack), dynAttackSlider);
+
+    dynReleaseAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
+        apvts, ParamIDs::bandParam (selectedBand, ParamIDs::kDynRelease), dynReleaseSlider);
 }
 
 void BottomControlStrip::updateSlopeEnabled()
@@ -188,6 +256,16 @@ void BottomControlStrip::updateValueLabels()
                        juce::dontSendNotification);
     qLabel.setText ("Q " + juce::String (qSlider.getValue(), 2),
                      juce::dontSendNotification);
+
+    // Dynamic EQ labels
+    dynThreshLabel.setText (juce::String (dynThreshSlider.getValue(), 1) + " dB",
+                            juce::dontSendNotification);
+    dynRangeLabel.setText (juce::String (dynRangeSlider.getValue(), 1) + " dB",
+                           juce::dontSendNotification);
+    dynAttackLabel.setText (juce::String (dynAttackSlider.getValue(), 1) + " ms",
+                            juce::dontSendNotification);
+    dynReleaseLabel.setText (juce::String (dynReleaseSlider.getValue(), 0) + " ms",
+                             juce::dontSendNotification);
 }
 
 void BottomControlStrip::timerCallback()
@@ -293,4 +371,46 @@ void BottomControlStrip::resized()
     // Stereo selector
     auto stereoArea = bounds.removeFromLeft (70);
     stereoSelector.setBounds (stereoArea.withHeight (24).withCentre (stereoArea.getCentre()));
+
+    bounds.removeFromLeft (12);
+
+    // Dynamic EQ controls (right side)
+    int dynKnobSize = 38;
+    int dynAreaWidth = 52;
+
+    // Dyn enable button
+    auto dynBtnArea = bounds.removeFromLeft (32);
+    dynEnableButton.setBounds (dynBtnArea.withHeight (22).withCentre (dynBtnArea.getCentre()));
+
+    bounds.removeFromLeft (4);
+
+    // Threshold knob
+    auto threshArea = bounds.removeFromLeft (dynAreaWidth);
+    auto threshKnob = threshArea.removeFromTop (threshArea.getHeight() - 16);
+    dynThreshSlider.setBounds (threshKnob.withSizeKeepingCentre (dynKnobSize, dynKnobSize));
+    dynThreshLabel.setBounds (threshArea);
+
+    bounds.removeFromLeft (2);
+
+    // Range knob
+    auto rangeArea = bounds.removeFromLeft (dynAreaWidth);
+    auto rangeKnob = rangeArea.removeFromTop (rangeArea.getHeight() - 16);
+    dynRangeSlider.setBounds (rangeKnob.withSizeKeepingCentre (dynKnobSize, dynKnobSize));
+    dynRangeLabel.setBounds (rangeArea);
+
+    bounds.removeFromLeft (2);
+
+    // Attack knob
+    auto attackArea = bounds.removeFromLeft (dynAreaWidth);
+    auto attackKnob = attackArea.removeFromTop (attackArea.getHeight() - 16);
+    dynAttackSlider.setBounds (attackKnob.withSizeKeepingCentre (dynKnobSize, dynKnobSize));
+    dynAttackLabel.setBounds (attackArea);
+
+    bounds.removeFromLeft (2);
+
+    // Release knob
+    auto releaseArea = bounds.removeFromLeft (dynAreaWidth);
+    auto releaseKnob = releaseArea.removeFromTop (releaseArea.getHeight() - 16);
+    dynReleaseSlider.setBounds (releaseKnob.withSizeKeepingCentre (dynKnobSize, dynKnobSize));
+    dynReleaseLabel.setBounds (releaseArea);
 }

@@ -183,6 +183,12 @@ juce::AudioProcessorValueTreeState::ParameterLayout createLayout()
         "Analog Mode",
         false));
 
+    // Phase Invert
+    layout.add (std::make_unique<juce::AudioParameterBool> (
+        juce::ParameterID { ParamIDs::kPhaseInvert, 1 },
+        "Phase Invert",
+        false));
+
     return layout;
 }
 

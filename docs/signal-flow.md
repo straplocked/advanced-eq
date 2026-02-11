@@ -347,9 +347,10 @@ This guarantees that the UI thread always sees a complete, consistent frame of F
 
 ## Latency
 
-In the current implementation (zero-latency IIR mode), the plugin introduces exactly zero samples of latency. The IIR filters have no inherent latency. The FFT analysis runs as a side-chain and does not affect the audio path.
+The plugin reports its latency dynamically via `setLatencySamples()` based on the active processing mode:
 
-Future phases may introduce latency for:
-- **Linear phase mode**: FIR filtering will add latency equal to half the FIR length
-- **Oversampling**: Upsampling/downsampling filters will add a small number of samples
-- **Lookahead** for dynamic EQ: Will add latency equal to the attack time window
+- **Zero Latency (IIR) mode:** 0 samples (plus oversampling filter latency if 2x/4x enabled)
+- **Natural Phase mode:** `kernelSize / 2` = 1024 samples (~23ms at 44.1 kHz)
+- **Linear Phase mode:** `kernelSize / 2` = 2048 samples (~46ms at 44.1 kHz, configurable up to 8192)
+
+The FFT analysis runs as a side-chain and does not affect the audio path.
