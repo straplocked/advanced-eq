@@ -97,6 +97,35 @@ BottomControlStrip::BottomControlStrip (AdvancedEQProcessor& p)
     addChildComponent (dynAttackLabel);
     addChildComponent (dynReleaseLabel);
 
+    // Title labels above knobs and selectors
+    auto setupTitleLabel = [] (juce::Label& label, const juce::String& text)
+    {
+        label.setText (text, juce::dontSendNotification);
+        label.setJustificationType (juce::Justification::centred);
+        label.setFont (9.0f);
+        label.setColour (juce::Label::textColourId, ColourPalette::textDim());
+    };
+
+    setupTitleLabel (typeTitleLabel, "Type");
+    setupTitleLabel (slopeTitleLabel, "Slope");
+    setupTitleLabel (stereoTitleLabel, "Stereo");
+    setupTitleLabel (freqTitleLabel, "Freq");
+    setupTitleLabel (gainTitleLabel, "Gain");
+    setupTitleLabel (dynThreshTitleLabel, "Thresh");
+    setupTitleLabel (dynRangeTitleLabel, "Range");
+    setupTitleLabel (dynAttackTitleLabel, "Attack");
+    setupTitleLabel (dynReleaseTitleLabel, "Release");
+
+    addChildComponent (typeTitleLabel);
+    addChildComponent (slopeTitleLabel);
+    addChildComponent (stereoTitleLabel);
+    addChildComponent (freqTitleLabel);
+    addChildComponent (gainTitleLabel);
+    addChildComponent (dynThreshTitleLabel);
+    addChildComponent (dynRangeTitleLabel);
+    addChildComponent (dynAttackTitleLabel);
+    addChildComponent (dynReleaseTitleLabel);
+
     // Component IDs for help system (band controls)
     typeSelector.setComponentID ("bottom.typeSelector");
     slopeSelector.setComponentID ("bottom.slopeSelector");
@@ -164,16 +193,6 @@ BottomControlStrip::BottomControlStrip (AdvancedEQProcessor& p)
     };
     addAndMakeVisible (sketchButton);
 
-    // Browse button
-    browseButton.setColour (juce::TextButton::buttonColourId, juce::Colours::transparentBlack);
-    browseButton.setColour (juce::TextButton::textColourOffId, ColourPalette::textDim());
-    browseButton.onClick = [this]
-    {
-        if (onBrowseClicked)
-            onBrowseClicked();
-    };
-    addAndMakeVisible (browseButton);
-
     // MIDI Program Change toggle
     midiPCButton.setClickingTogglesState (true);
     midiPCButton.setColour (juce::TextButton::buttonOnColourId, juce::Colour (0xff66ccff).withAlpha (0.3f));
@@ -212,11 +231,35 @@ BottomControlStrip::BottomControlStrip (AdvancedEQProcessor& p)
     freezeButton.setComponentID ("bottom.freeze");
     matchButton.setComponentID ("bottom.match");
     sketchButton.setComponentID ("bottom.sketch");
-    browseButton.setComponentID ("bottom.browse");
     midiPCButton.setComponentID ("bottom.midiPC");
     helpButton.setComponentID ("bottom.help");
     processModeSelector.setComponentID ("bottom.processMode");
     lpQualitySelector.setComponentID ("bottom.lpQuality");
+
+    // Tooltips (band controls)
+    typeSelector.setTooltip ("Filter type");
+    slopeSelector.setTooltip ("Filter slope / order");
+    stereoSelector.setTooltip ("Stereo placement");
+    freqSlider.setTooltip ("Center frequency");
+    gainSlider.setTooltip ("Band gain");
+    qSlider.setTooltip ("Q factor / bandwidth");
+    dynEnableButton.setTooltip ("Enable dynamic EQ for this band");
+    dynThreshSlider.setTooltip ("Dynamic EQ threshold");
+    dynRangeSlider.setTooltip ("Dynamic EQ range");
+    dynAttackSlider.setTooltip ("Dynamic EQ attack time");
+    dynReleaseSlider.setTooltip ("Dynamic EQ release time");
+
+    // Tooltips (global toolbar)
+    phaseInvertButton.setTooltip ("Invert output phase");
+    characterSelector.setTooltip ("EQ character mode");
+    analyzerButton.setTooltip ("Toggle spectrum analyzer");
+    freezeButton.setTooltip ("Freeze spectrum display");
+    matchButton.setTooltip ("EQ match");
+    sketchButton.setTooltip ("Sketch mode");
+    midiPCButton.setTooltip ("MIDI program change");
+    helpButton.setTooltip ("Show control descriptions");
+    processModeSelector.setTooltip ("Processing mode");
+    lpQualitySelector.setTooltip ("Linear phase quality");
 
     startTimerHz (10);
 }
@@ -303,6 +346,17 @@ void BottomControlStrip::setControlsVisible (bool visible)
     dynRangeLabel.setVisible (visible);
     dynAttackLabel.setVisible (visible);
     dynReleaseLabel.setVisible (visible);
+
+    // Title labels
+    typeTitleLabel.setVisible (visible);
+    slopeTitleLabel.setVisible (visible);
+    stereoTitleLabel.setVisible (visible);
+    freqTitleLabel.setVisible (visible);
+    gainTitleLabel.setVisible (visible);
+    dynThreshTitleLabel.setVisible (visible);
+    dynRangeTitleLabel.setVisible (visible);
+    dynAttackTitleLabel.setVisible (visible);
+    dynReleaseTitleLabel.setVisible (visible);
 }
 
 void BottomControlStrip::updateAttachments()
@@ -444,7 +498,7 @@ void BottomControlStrip::paint (juce::Graphics& g)
     {
         // Band colour indicator with glow halo
         auto colour = ColourPalette::bandColour (selectedBand);
-        float dotX = 18.0f;
+        float dotX = bandLabel.getBounds().getCentreX();
         float dotY = (sepY - bounds.getY()) * 0.5f;
 
         // Glow
@@ -466,9 +520,9 @@ void BottomControlStrip::resized()
     bounds.removeFromBottom (4); // gap between rows
 
     // Centre the toolbar controls within the full-width row
-    int totalToolW = 100 + 2 + 60 + 2 + 60 + 2 + 26  // selectors + phase
+    int totalToolW = 100 + 2 + 70 + 2 + 85 + 2 + 26  // selectors + phase
                    + 12                                   // gap
-                   + 56 + 2 + 44 + 2 + 38 + 2 + 44 + 2 + 44 + 2 + 48 + 2 + 22; // buttons
+                   + 56 + 2 + 26 + 2 + 38 + 2 + 26 + 2 + 48 + 2 + 22; // buttons
     auto tb = toolbarRow.withSizeKeepingCentre (juce::jmin (totalToolW, toolbarRow.getWidth()),
                                                  toolbarRow.getHeight());
 
@@ -476,10 +530,10 @@ void BottomControlStrip::resized()
     auto pmArea = tb.removeFromLeft (100);
     processModeSelector.setBounds (pmArea.withHeight (22).withCentre (pmArea.getCentre()));
     tb.removeFromLeft (2);
-    auto lpArea = tb.removeFromLeft (60);
+    auto lpArea = tb.removeFromLeft (70);
     lpQualitySelector.setBounds (lpArea.withHeight (22).withCentre (lpArea.getCentre()));
     tb.removeFromLeft (2);
-    auto charArea = tb.removeFromLeft (60);
+    auto charArea = tb.removeFromLeft (85);
     characterSelector.setBounds (charArea.withHeight (22).withCentre (charArea.getCentre()));
     tb.removeFromLeft (2);
     auto phaseArea = tb.removeFromLeft (26);
@@ -491,17 +545,14 @@ void BottomControlStrip::resized()
     auto analyzerArea = tb.removeFromLeft (56);
     analyzerButton.setBounds (analyzerArea.withHeight (22).withCentre (analyzerArea.getCentre()));
     tb.removeFromLeft (2);
-    auto freezeArea = tb.removeFromLeft (44);
+    auto freezeArea = tb.removeFromLeft (26);
     freezeButton.setBounds (freezeArea.withHeight (22).withCentre (freezeArea.getCentre()));
     tb.removeFromLeft (2);
     auto matchArea = tb.removeFromLeft (38);
     matchButton.setBounds (matchArea.withHeight (22).withCentre (matchArea.getCentre()));
     tb.removeFromLeft (2);
-    auto sketchArea = tb.removeFromLeft (44);
+    auto sketchArea = tb.removeFromLeft (26);
     sketchButton.setBounds (sketchArea.withHeight (22).withCentre (sketchArea.getCentre()));
-    tb.removeFromLeft (2);
-    auto browseArea = tb.removeFromLeft (44);
-    browseButton.setBounds (browseArea.withHeight (22).withCentre (browseArea.getCentre()));
     tb.removeFromLeft (2);
     auto midiArea = tb.removeFromLeft (48);
     midiPCButton.setBounds (midiArea.withHeight (22).withCentre (midiArea.getCentre()));
@@ -509,97 +560,114 @@ void BottomControlStrip::resized()
     auto helpArea = tb.removeFromLeft (22);
     helpButton.setBounds (helpArea.withHeight (22).withCentre (helpArea.getCentre()));
 
-    // --- Top row: band controls (full width) ---
-
-    // Band indicator area
-    auto bandArea = bounds.removeFromLeft (30);
-    bandLabel.setBounds (bandArea.removeFromBottom (20));
-
-    bounds.removeFromLeft (4); // spacing
-
-    // Type selector
-    auto typeArea = bounds.removeFromLeft (90);
-    typeSelector.setBounds (typeArea.withHeight (24).withCentre (typeArea.getCentre()));
-
-    bounds.removeFromLeft (8);
-
-    // Knob areas
+    // --- Top row: band controls (centred) ---
     int knobSize = 50;
     int knobAreaWidth = 70;
-
-    // Frequency knob
-    auto freqArea = bounds.removeFromLeft (knobAreaWidth);
-    auto freqKnobArea = freqArea.removeFromTop (freqArea.getHeight() - 16);
-    freqSlider.setBounds (freqKnobArea.withSizeKeepingCentre (knobSize, knobSize));
-    freqLabel.setBounds (freqArea);
-
-    bounds.removeFromLeft (4);
-
-    // Gain knob
-    auto gainArea = bounds.removeFromLeft (knobAreaWidth);
-    auto gainKnobArea = gainArea.removeFromTop (gainArea.getHeight() - 16);
-    gainSlider.setBounds (gainKnobArea.withSizeKeepingCentre (knobSize, knobSize));
-    gainLabel.setBounds (gainArea);
-
-    bounds.removeFromLeft (4);
-
-    // Q knob
-    auto qArea = bounds.removeFromLeft (knobAreaWidth);
-    auto qKnobArea = qArea.removeFromTop (qArea.getHeight() - 16);
-    qSlider.setBounds (qKnobArea.withSizeKeepingCentre (knobSize, knobSize));
-    qLabel.setBounds (qArea);
-
-    bounds.removeFromLeft (8);
-
-    // Slope selector
-    auto slopeArea = bounds.removeFromLeft (80);
-    slopeSelector.setBounds (slopeArea.withHeight (24).withCentre (slopeArea.getCentre()));
-
-    bounds.removeFromLeft (8);
-
-    // Stereo selector
-    auto stereoArea = bounds.removeFromLeft (70);
-    stereoSelector.setBounds (stereoArea.withHeight (24).withCentre (stereoArea.getCentre()));
-
-    bounds.removeFromLeft (12);
-
-    // Dynamic EQ controls
     int dynKnobSize = 38;
     int dynAreaWidth = 52;
 
+    int totalBandW = 30 + 4          // band indicator + gap
+                   + 90 + 8          // type selector + gap
+                   + knobAreaWidth + 4 + knobAreaWidth + 4 + knobAreaWidth + 8  // freq/gain/Q + gaps
+                   + 80 + 8          // slope + gap
+                   + 70 + 12         // stereo + gap
+                   + 32 + 4          // dyn enable + gap
+                   + dynAreaWidth + 2 + dynAreaWidth + 2 + dynAreaWidth + 2 + dynAreaWidth; // dyn knobs
+
+    auto bc = bounds.withSizeKeepingCentre (juce::jmin (totalBandW, bounds.getWidth()),
+                                             bounds.getHeight());
+
+    // Band indicator area
+    auto bandArea = bc.removeFromLeft (30);
+    bandLabel.setBounds (bandArea.removeFromBottom (20));
+
+    bc.removeFromLeft (4); // spacing
+
+    // Type selector
+    auto typeArea = bc.removeFromLeft (90);
+    typeTitleLabel.setBounds (typeArea.removeFromTop (14));
+    typeSelector.setBounds (typeArea.withHeight (24).withCentre (typeArea.getCentre()));
+
+    bc.removeFromLeft (8);
+
+    // Frequency knob
+    auto freqArea = bc.removeFromLeft (knobAreaWidth);
+    freqTitleLabel.setBounds (freqArea.removeFromTop (14));
+    auto freqValArea = freqArea.removeFromBottom (14);
+    freqSlider.setBounds (freqArea.withSizeKeepingCentre (knobSize, knobSize));
+    freqLabel.setBounds (freqValArea);
+
+    bc.removeFromLeft (4);
+
+    // Gain knob
+    auto gainArea = bc.removeFromLeft (knobAreaWidth);
+    gainTitleLabel.setBounds (gainArea.removeFromTop (14));
+    auto gainValArea = gainArea.removeFromBottom (14);
+    gainSlider.setBounds (gainArea.withSizeKeepingCentre (knobSize, knobSize));
+    gainLabel.setBounds (gainValArea);
+
+    bc.removeFromLeft (4);
+
+    // Q knob
+    auto qArea = bc.removeFromLeft (knobAreaWidth);
+    qArea.removeFromTop (14); // match vertical alignment with Freq/Gain
+    auto qValArea = qArea.removeFromBottom (14);
+    qSlider.setBounds (qArea.withSizeKeepingCentre (knobSize, knobSize));
+    qLabel.setBounds (qValArea);
+
+    bc.removeFromLeft (8);
+
+    // Slope selector
+    auto slopeArea = bc.removeFromLeft (80);
+    slopeTitleLabel.setBounds (slopeArea.removeFromTop (14));
+    slopeSelector.setBounds (slopeArea.withHeight (24).withCentre (slopeArea.getCentre()));
+
+    bc.removeFromLeft (8);
+
+    // Stereo selector
+    auto stereoArea = bc.removeFromLeft (70);
+    stereoTitleLabel.setBounds (stereoArea.removeFromTop (14));
+    stereoSelector.setBounds (stereoArea.withHeight (24).withCentre (stereoArea.getCentre()));
+
+    bc.removeFromLeft (12);
+
     // Dyn enable button
-    auto dynBtnArea = bounds.removeFromLeft (32);
+    auto dynBtnArea = bc.removeFromLeft (32);
     dynEnableButton.setBounds (dynBtnArea.withHeight (22).withCentre (dynBtnArea.getCentre()));
 
-    bounds.removeFromLeft (4);
+    bc.removeFromLeft (4);
 
     // Threshold knob
-    auto threshArea = bounds.removeFromLeft (dynAreaWidth);
-    auto threshKnob = threshArea.removeFromTop (threshArea.getHeight() - 16);
-    dynThreshSlider.setBounds (threshKnob.withSizeKeepingCentre (dynKnobSize, dynKnobSize));
-    dynThreshLabel.setBounds (threshArea);
+    auto threshArea = bc.removeFromLeft (dynAreaWidth);
+    dynThreshTitleLabel.setBounds (threshArea.removeFromTop (12));
+    auto threshVal = threshArea.removeFromBottom (14);
+    dynThreshSlider.setBounds (threshArea.withSizeKeepingCentre (dynKnobSize, dynKnobSize));
+    dynThreshLabel.setBounds (threshVal);
 
-    bounds.removeFromLeft (2);
+    bc.removeFromLeft (2);
 
     // Range knob
-    auto rangeArea = bounds.removeFromLeft (dynAreaWidth);
-    auto rangeKnob = rangeArea.removeFromTop (rangeArea.getHeight() - 16);
-    dynRangeSlider.setBounds (rangeKnob.withSizeKeepingCentre (dynKnobSize, dynKnobSize));
-    dynRangeLabel.setBounds (rangeArea);
+    auto rangeArea = bc.removeFromLeft (dynAreaWidth);
+    dynRangeTitleLabel.setBounds (rangeArea.removeFromTop (12));
+    auto rangeVal = rangeArea.removeFromBottom (14);
+    dynRangeSlider.setBounds (rangeArea.withSizeKeepingCentre (dynKnobSize, dynKnobSize));
+    dynRangeLabel.setBounds (rangeVal);
 
-    bounds.removeFromLeft (2);
+    bc.removeFromLeft (2);
 
     // Attack knob
-    auto attackArea = bounds.removeFromLeft (dynAreaWidth);
-    auto attackKnob = attackArea.removeFromTop (attackArea.getHeight() - 16);
-    dynAttackSlider.setBounds (attackKnob.withSizeKeepingCentre (dynKnobSize, dynKnobSize));
-    dynAttackLabel.setBounds (attackArea);
+    auto attackArea = bc.removeFromLeft (dynAreaWidth);
+    dynAttackTitleLabel.setBounds (attackArea.removeFromTop (12));
+    auto attackVal = attackArea.removeFromBottom (14);
+    dynAttackSlider.setBounds (attackArea.withSizeKeepingCentre (dynKnobSize, dynKnobSize));
+    dynAttackLabel.setBounds (attackVal);
 
-    bounds.removeFromLeft (2);
+    bc.removeFromLeft (2);
 
     // Release knob
-    auto releaseArea = bounds.removeFromLeft (dynAreaWidth);
-    auto releaseKnob = releaseArea.removeFromTop (releaseArea.getHeight() - 16);
-    dynReleaseSlider.setBounds (releaseKnob.withSizeKeepingCentre (dynKnobSize, dynKnobSize));
-    dynReleaseLabel.setBounds (releaseArea);
+    auto releaseArea = bc.removeFromLeft (dynAreaWidth);
+    dynReleaseTitleLabel.setBounds (releaseArea.removeFromTop (12));
+    auto releaseVal = releaseArea.removeFromBottom (14);
+    dynReleaseSlider.setBounds (releaseArea.withSizeKeepingCentre (dynKnobSize, dynKnobSize));
+    dynReleaseLabel.setBounds (releaseVal);
 }

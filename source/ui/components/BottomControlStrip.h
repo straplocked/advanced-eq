@@ -31,7 +31,6 @@ public:
     std::function<void()> onMatchClicked;
     std::function<void (bool)> onHelpToggled;
     std::function<void (bool)> onSketchToggled;
-    std::function<void()> onBrowseClicked;
 
 private:
     AdvancedEQProcessor& processor;
@@ -66,14 +65,18 @@ private:
     juce::Label dynAttackLabel;
     juce::Label dynReleaseLabel;
 
+    // Title labels (shown above knobs/selectors when a band is selected)
+    juce::Label typeTitleLabel, slopeTitleLabel, stereoTitleLabel;
+    juce::Label freqTitleLabel, gainTitleLabel;
+    juce::Label dynThreshTitleLabel, dynRangeTitleLabel, dynAttackTitleLabel, dynReleaseTitleLabel;
+
     // --- Global tools (right zone) ---
     juce::TextButton phaseInvertButton { juce::String::charToString (0x00D8) };
     juce::ComboBox characterSelector;
     juce::TextButton analyzerButton { "Analyzer" };
-    juce::TextButton freezeButton { "Freeze" };
+    juce::TextButton freezeButton { juce::String::charToString (0x2744) };  // ❄
     juce::TextButton matchButton { "Match" };
-    juce::TextButton sketchButton { "Sketch" };
-    juce::TextButton browseButton { "Browse" };
+    juce::TextButton sketchButton { juce::String::charToString (0x270E) }; // ✎
     juce::TextButton midiPCButton { "MIDI PC" };
     juce::TextButton helpButton { "?" };
     juce::ComboBox processModeSelector;

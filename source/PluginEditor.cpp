@@ -52,8 +52,8 @@ AdvancedEQEditor::AdvancedEQEditor (AdvancedEQProcessor& p)
         curveDisplay.setSketchMode (active);
     };
 
-    // Browse button - shows enhanced preset browser panel (bottom control strip)
-    controlStrip.onBrowseClicked = [this]
+    // Preset name click - toggle browser panel
+    headerToolbar.onPresetNameClicked = [this]
     {
         presetBrowser.setVisible (! presetBrowser.isVisible());
     };

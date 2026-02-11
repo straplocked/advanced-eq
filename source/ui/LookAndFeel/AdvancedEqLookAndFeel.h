@@ -52,6 +52,9 @@ public:
         setColour (juce::PopupMenu::textColourId, ColourPalette::textBright());
         setColour (juce::PopupMenu::highlightedBackgroundColourId, ColourPalette::knobBackground());
         setColour (juce::PopupMenu::highlightedTextColourId, ColourPalette::textBright());
+        setColour (juce::TooltipWindow::backgroundColourId, ColourPalette::controlBar());
+        setColour (juce::TooltipWindow::textColourId, ColourPalette::textBright());
+        setColour (juce::TooltipWindow::outlineColourId, ColourPalette::gridLine());
     }
 
     /** @brief Draws a metallic rotary knob with a value arc, pointer dot, and notch marks.
@@ -243,5 +246,18 @@ public:
         g.fillPath (arrow);
 
         (void) box;
+    }
+
+    juce::Font getComboBoxFont (juce::ComboBox&) override
+    {
+        return juce::Font (11.0f);
+    }
+
+    void positionComboBoxText (juce::ComboBox& box, juce::Label& label) override
+    {
+        label.setBounds (1, 1,
+                         box.getWidth() - 18,
+                         box.getHeight() - 2);
+        label.setFont (getComboBoxFont (box));
     }
 };

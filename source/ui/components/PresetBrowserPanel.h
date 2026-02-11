@@ -131,12 +131,26 @@ public:
 
         auto& entry = filteredEntries[(size_t) row];
 
-        // Right-click to toggle favorite
+        // Right-click context menu
         if (e.mods.isPopupMenu())
         {
-            entry.isFavorite = ! entry.isFavorite;
-            metadataStore.setFavorite (entry.name, entry.isFavorite);
-            listBox.repaint();
+            juce::PopupMenu contextMenu;
+            contextMenu.addItem (1, entry.isFavorite ? "Unfavorite" : "Favorite");
+            if (! presetManager.getAllPresets()[(size_t) entry.presetIndex].isFactory)
+                contextMenu.addItem (2, "Delete");
+
+            contextMenu.showMenuAsync ({}, [this, row] (int result) {
+                if (row < 0 || row >= (int) filteredEntries.size()) return;
+                auto& fe = filteredEntries[(size_t) row];
+                if (result == 1) {
+                    fe.isFavorite = ! fe.isFavorite;
+                    metadataStore.setFavorite (fe.name, fe.isFavorite);
+                    listBox.repaint();
+                } else if (result == 2) {
+                    presetManager.deleteUserPreset (fe.presetIndex);
+                    rebuildFilteredList();
+                }
+            });
             return;
         }
 

@@ -318,7 +318,18 @@ void EqCurveDisplay::drawGrid (juce::Graphics& g)
 {
     auto bounds = getLocalBounds().toFloat();
 
-    // Frequency grid lines (anti-aliased)
+    // Sub-octave frequency lines (very faint, fills in the gaps)
+    static const float subFreqLines[] = { 30, 40, 60, 70, 80, 150, 250, 300, 400, 600,
+                                          700, 800, 1500, 2500, 3000, 4000, 6000, 7000,
+                                          8000, 15000 };
+    g.setColour (ColourPalette::gridLine().withMultipliedAlpha (0.4f));
+    for (float freq : subFreqLines)
+    {
+        float x = frequencyToX (freq);
+        g.drawLine (x, bounds.getY(), x, bounds.getBottom(), 1.0f);
+    }
+
+    // Octave frequency lines (labeled frequencies)
     static const float freqLines[] = { 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000 };
     for (float freq : freqLines)
     {
@@ -326,8 +337,18 @@ void EqCurveDisplay::drawGrid (juce::Graphics& g)
         bool isMajor = (freq > 99.0f && freq < 101.0f)
                      || (freq > 999.0f && freq < 1001.0f)
                      || (freq > 9999.0f && freq < 10001.0f);
-        g.setColour (isMajor ? ColourPalette::gridLineStrong() : ColourPalette::gridLine());
-        g.drawLine (x, bounds.getY(), x, bounds.getBottom(), 1.0f);
+
+        if (isMajor)
+        {
+            // Decade marks: brighter, accent-tinted, slightly wider
+            g.setColour (ColourPalette::compositeCurve().withAlpha (0.12f));
+            g.drawLine (x, bounds.getY(), x, bounds.getBottom(), 1.5f);
+        }
+        else
+        {
+            g.setColour (ColourPalette::gridLineStrong());
+            g.drawLine (x, bounds.getY(), x, bounds.getBottom(), 1.0f);
+        }
     }
 
     // Gain grid lines (anti-aliased, dynamic step)
@@ -336,8 +357,18 @@ void EqCurveDisplay::drawGrid (juce::Graphics& g)
     {
         float y = gainToY (db);
         bool isZero = (std::abs (db) < 0.1f);
-        g.setColour (isZero ? ColourPalette::gridLineStrong() : ColourPalette::gridLine());
-        g.drawLine (bounds.getX(), y, bounds.getRight(), y, 1.0f);
+
+        if (isZero)
+        {
+            // 0 dB line: accent-tinted like decade frequency marks
+            g.setColour (ColourPalette::compositeCurve().withAlpha (0.12f));
+            g.drawLine (bounds.getX(), y, bounds.getRight(), y, 1.5f);
+        }
+        else
+        {
+            g.setColour (ColourPalette::gridLine());
+            g.drawLine (bounds.getX(), y, bounds.getRight(), y, 1.0f);
+        }
     }
 }
 

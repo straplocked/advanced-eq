@@ -33,7 +33,7 @@ HeaderToolbar::HeaderToolbar (AdvancedEQProcessor& p)
 
     presetNameButton.setColour (juce::TextButton::buttonColourId, juce::Colours::transparentBlack);
     presetNameButton.setColour (juce::TextButton::textColourOffId, ColourPalette::textBright());
-    presetNameButton.onClick = [this] { showPresetMenu(); };
+    presetNameButton.onClick = [this] { if (onPresetNameClicked) onPresetNameClicked(); };
     addAndMakeVisible (presetNameButton);
 
     saveButton.setColour (juce::TextButton::buttonColourId, juce::Colours::transparentBlack);
@@ -94,7 +94,7 @@ HeaderToolbar::HeaderToolbar (AdvancedEQProcessor& p)
     outputWidthAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
         apvts, ParamIDs::kOutputWidth, outputWidthSlider);
 
-    outputWidthLabel.setText ("W", juce::dontSendNotification);
+    outputWidthLabel.setText ("Width", juce::dontSendNotification);
     outputWidthLabel.setJustificationType (juce::Justification::centred);
     outputWidthLabel.setFont (10.0f);
     outputWidthLabel.setColour (juce::Label::textColourId, ColourPalette::axisText());
@@ -124,6 +124,19 @@ HeaderToolbar::HeaderToolbar (AdvancedEQProcessor& p)
     fullscreenButton.setComponentID ("header.fullscreen");
     outputGainSlider.setComponentID ("header.outputGain");
     outputWidthSlider.setComponentID ("header.outputWidth");
+
+    // Tooltips
+    prevButton.setTooltip ("Previous preset");
+    nextButton.setTooltip ("Next preset");
+    presetNameButton.setTooltip ("Browse presets");
+    saveButton.setTooltip ("Save preset");
+    undoButton.setTooltip ("Undo (Cmd+Z)");
+    redoButton.setTooltip ("Redo (Cmd+Shift+Z)");
+    abToggleButton.setTooltip ("Toggle A/B comparison");
+    copyABButton.setTooltip ("Copy settings to other slot");
+    fullscreenButton.setTooltip ("Toggle fullscreen (F11)");
+    outputGainSlider.setTooltip ("Output gain");
+    outputWidthSlider.setTooltip ("Output stereo width");
 }
 
 HeaderToolbar::~HeaderToolbar()
@@ -231,66 +244,6 @@ void HeaderToolbar::presetChanged()
 void HeaderToolbar::updatePresetName()
 {
     presetNameButton.setButtonText (presetManager.getCurrentPresetName());
-}
-
-void HeaderToolbar::showPresetMenu()
-{
-    juce::PopupMenu menu;
-    auto categories = presetManager.getCategories();
-    auto& allPresets = presetManager.getAllPresets();
-
-    for (auto& category : categories)
-    {
-        juce::PopupMenu subMenu;
-
-        for (int i = 0; i < (int) allPresets.size(); ++i)
-        {
-            if (allPresets[(size_t) i].category == category)
-            {
-                bool isCurrent = (i == presetManager.getCurrentPresetIndex());
-
-                if (! allPresets[(size_t) i].isFactory)
-                {
-                    // User presets get a delete option via right-click submenu
-                    juce::PopupMenu itemMenu;
-                    itemMenu.addItem (10000 + i, "Delete");
-                    subMenu.addItem (i + 1, allPresets[(size_t) i].name, true, isCurrent);
-                }
-                else
-                {
-                    subMenu.addItem (i + 1, allPresets[(size_t) i].name, true, isCurrent);
-                }
-            }
-        }
-
-        menu.addSubMenu (category, subMenu);
-    }
-
-    // Add save/delete actions at bottom
-    menu.addSeparator();
-    menu.addItem (-1, "Save Preset...");
-
-    // Add delete option if current preset is a user preset
-    auto idx = presetManager.getCurrentPresetIndex();
-    if (idx >= 0 && idx < (int) allPresets.size() && ! allPresets[(size_t) idx].isFactory)
-        menu.addItem (-2, "Delete \"" + allPresets[(size_t) idx].name + "\"");
-
-    menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (&presetNameButton),
-        [this] (int result)
-        {
-            if (result == -1)
-            {
-                showSaveDialog();
-            }
-            else if (result == -2)
-            {
-                presetManager.deleteUserPreset (presetManager.getCurrentPresetIndex());
-            }
-            else if (result > 0)
-            {
-                presetManager.applyPreset (result - 1);
-            }
-        });
 }
 
 void HeaderToolbar::showSaveDialog()

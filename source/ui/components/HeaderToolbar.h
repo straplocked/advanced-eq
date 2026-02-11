@@ -31,25 +31,26 @@ public:
     void presetChanged() override;
 
     std::function<void()> onFullscreenClicked;
+    std::function<void()> onPresetNameClicked;
 
 private:
     AdvancedEQProcessor& processor;
     PresetManager& presetManager;
 
     // Preset controls
-    juce::TextButton prevButton { "<" };
-    juce::TextButton nextButton { ">" };
+    juce::TextButton prevButton { juce::String::charToString (0x25C0) };   // ◀
+    juce::TextButton nextButton { juce::String::charToString (0x25B6) };   // ▶
     juce::TextButton presetNameButton { "Init" };
-    juce::TextButton saveButton { "Save" };
+    juce::TextButton saveButton { juce::String::charToString (0x2913) };   // ⤓ (save/download)
 
     // Undo/Redo and A/B
-    juce::TextButton undoButton { "Undo" };
-    juce::TextButton redoButton { "Redo" };
+    juce::TextButton undoButton { juce::String::charToString (0x21A9) };   // ↩
+    juce::TextButton redoButton { juce::String::charToString (0x21AA) };   // ↪
     juce::TextButton abToggleButton { "A" };
     juce::TextButton copyABButton { "A>B" };
 
     // Right-side controls
-    juce::TextButton fullscreenButton { "FS" };
+    juce::TextButton fullscreenButton { juce::String::charToString (0x2922) }; // ⤢
     juce::Slider outputGainSlider;
     juce::Slider outputWidthSlider;
     juce::Label outputGainLabel;
@@ -59,7 +60,6 @@ private:
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> outputGainAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> outputWidthAttachment;
 
-    void showPresetMenu();
     void showSaveDialog();
     void updatePresetName();
 

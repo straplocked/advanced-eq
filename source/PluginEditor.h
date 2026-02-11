@@ -48,6 +48,7 @@ private:
     HelpOverlay helpOverlay;
     PresetBrowserPanel presetBrowser;
     InstanceListPanel instanceList;
+    juce::TooltipWindow tooltipWindow;
 
     // Fullscreen
     bool isFullScreen = false;
