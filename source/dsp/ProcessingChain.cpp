@@ -212,8 +212,8 @@ void ProcessingChain::processBands (juce::AudioBuffer<float>& buffer)
         }
     }
 
-    // Analog mode: crosstalk + noise floor
-    if (analogMode && isStereo)
+    // Crosstalk + noise floor (Warm mode only)
+    if (characterMode == 2 && isStereo)
     {
         float* dataL = buffer.getWritePointer (0);
         float* dataR = buffer.getWritePointer (1);
@@ -238,7 +238,7 @@ void ProcessingChain::processBands (juce::AudioBuffer<float>& buffer)
             dataR[i] += pinkState[1] * noiseLevel;
         }
     }
-    else if (analogMode && ! isStereo)
+    else if (characterMode == 2 && ! isStereo)
     {
         float* data = buffer.getWritePointer (0);
         constexpr float noiseLevel = 1e-5f;
@@ -373,6 +373,26 @@ void ProcessingChain::setAnalogMode (bool enabled)
     analogMode = enabled;
     for (auto& band : bands)
         band.setAnalogMode (enabled);
+}
+
+void ProcessingChain::setCharacterMode (int mode)
+{
+    mode = juce::jlimit (0, 2, mode);
+    if (mode == characterMode)
+        return;
+
+    characterMode = mode;
+    analogMode = (mode >= 1); // Gentle and Warm enable analog-style processing
+
+    for (auto& band : bands)
+        band.setCharacterMode (mode);
+}
+
+void ProcessingChain::setLinearPhaseQuality (int quality)
+{
+    quality = juce::jlimit (0, 2, quality);
+    static const int kernelSizes[] = { 2048, 4096, 8192 };
+    linearPhaseEngine.setKernelSize (kernelSizes[quality]);
 }
 
 void ProcessingChain::setSoloBand (int bandIndex)

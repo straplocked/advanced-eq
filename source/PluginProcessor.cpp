@@ -18,6 +18,7 @@
 AdvancedEQProcessor::AdvancedEQProcessor()
     : AudioProcessor (BusesProperties()
                       .withInput  ("Input",  juce::AudioChannelSet::stereo(), true)
+                      .withInput  ("Sidechain", juce::AudioChannelSet::stereo(), false)
                       .withOutput ("Output", juce::AudioChannelSet::stereo(), true)),
       apvts (*this, &undoManager, "AdvancedEQState", ParameterLayout::createLayout()),
       presetManager (apvts),
@@ -37,6 +38,9 @@ AdvancedEQProcessor::AdvancedEQProcessor()
     rawPhaseInvert = apvts.getRawParameterValue (ParamIDs::kPhaseInvert);
     rawAnalyzerRes = apvts.getRawParameterValue (ParamIDs::kAnalyzerRes);
     rawProcessMode = apvts.getRawParameterValue (ParamIDs::kProcessMode);
+    rawMidiPC      = apvts.getRawParameterValue (ParamIDs::kMidiProgramChange);
+    rawOutputWidth = apvts.getRawParameterValue (ParamIDs::kOutputWidth);
+    rawLPQuality   = apvts.getRawParameterValue (ParamIDs::kLinearPhaseQuality);
 }
 
 AdvancedEQProcessor::~AdvancedEQProcessor() = default;
@@ -75,16 +79,25 @@ bool AdvancedEQProcessor::isBusesLayoutSupported (const BusesLayout& layouts) co
 {
     auto mainOut = layouts.getMainOutputChannelSet();
 
-    // Supported layouts: mono, stereo, 5.1, 7.1, 7.1.4
+    // Supported layouts: mono, stereo, 5.1, 7.1, 7.1.4, 9.1.6
     if (mainOut != juce::AudioChannelSet::mono()
         && mainOut != juce::AudioChannelSet::stereo()
         && mainOut != juce::AudioChannelSet::create5point1()
         && mainOut != juce::AudioChannelSet::create7point1()
-        && mainOut != juce::AudioChannelSet::create7point1point4())
+        && mainOut != juce::AudioChannelSet::create7point1point4()
+        && mainOut != juce::AudioChannelSet::create9point1point6())
         return false;
 
     if (mainOut != layouts.getMainInputChannelSet())
         return false;
+
+    // Allow optional stereo sidechain
+    if (layouts.inputBuses.size() > 1)
+    {
+        auto sc = layouts.getChannelSet (true, 1);
+        if (! sc.isDisabled() && sc != juce::AudioChannelSet::stereo())
+            return false;
+    }
 
     return true;
 }
@@ -103,11 +116,38 @@ void AdvancedEQProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     // Process MIDI CC messages for MIDI Learn
     midiLearnManager.processMidi (midiMessages);
 
+    // MIDI Program Change: load presets via MIDI
+    if (rawMidiPC->load() >= 0.5f)
+    {
+        for (const auto metadata : midiMessages)
+        {
+            auto msg = metadata.getMessage();
+            if (msg.isProgramChange())
+            {
+                int program = msg.getProgramChangeNumber();
+                auto& presets = presetManager.getAllPresets();
+                if (! presets.empty())
+                    presetManager.applyPreset (program % (int) presets.size());
+            }
+        }
+    }
+
     // Read parameters and update DSP (lock-free via atomic reads)
     for (int i = 0; i < Constants::kMaxBands; ++i)
     {
         auto params = bandAttachments[(size_t) i].getCurrentParameters();
         processingChain.updateBand (i, params);
+
+        // Spectral dynamics (separate from IIR cascade path)
+        auto* band = processingChain.getBand (i);
+        if (band != nullptr)
+        {
+            band->setSpectralDynamics (
+                bandAttachments[(size_t) i].getSpectralEnabled(),
+                bandAttachments[(size_t) i].getSpectralThreshold(),
+                bandAttachments[(size_t) i].getSpectralRange(),
+                bandAttachments[(size_t) i].getSpectralRatio());
+        }
     }
 
     // Publish band data to instance registry for collision detection
@@ -141,7 +181,11 @@ void AdvancedEQProcessor::processBlock (juce::AudioBuffer<float>& buffer,
         outputGainDB += processingChain.computeAutoGainCompensation();
     processingChain.setOutputGain (outputGainDB);
 
-    processingChain.setAnalogMode (rawAnalogMode->load() >= 0.5f);
+    // Character mode (replaces analog bool: 0=Clean, 1=Gentle, 2=Warm)
+    processingChain.setCharacterMode ((int) rawAnalogMode->load());
+
+    // Linear phase quality
+    processingChain.setLinearPhaseQuality ((int) rawLPQuality->load());
 
     // Report latency from oversampling
     setLatencySamples (processingChain.getLatencyInSamples());
@@ -153,6 +197,24 @@ void AdvancedEQProcessor::processBlock (juce::AudioBuffer<float>& buffer,
 
     // Process audio through EQ
     processingChain.process (buffer);
+
+    // Output stereo width (M/S encoding)
+    float width = rawOutputWidth->load();
+    if (buffer.getNumChannels() >= 2 && std::abs (width - 1.0f) > 0.001f)
+    {
+        float* dataL = buffer.getWritePointer (0);
+        float* dataR = buffer.getWritePointer (1);
+        int ns = buffer.getNumSamples();
+
+        for (int i = 0; i < ns; ++i)
+        {
+            float mid  = (dataL[i] + dataR[i]) * 0.5f;
+            float side = (dataL[i] - dataR[i]) * 0.5f;
+            side *= width;
+            dataL[i] = mid + side;
+            dataR[i] = mid - side;
+        }
+    }
 
     // Phase inversion (after all processing)
     if (rawPhaseInvert->load() >= 0.5f)

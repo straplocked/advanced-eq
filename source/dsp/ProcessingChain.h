@@ -149,6 +149,12 @@ public:
      */
     void setAnalogMode (bool enabled);
 
+    /** Set character mode: 0=Clean, 1=Gentle, 2=Warm */
+    void setCharacterMode (int mode);
+
+    /** Set linear phase quality: 0=Low(2048), 1=Medium(4096), 2=High(8192) */
+    void setLinearPhaseQuality (int quality);
+
     /** Set the solo band index (-1 = off, 0-23 = solo that band). */
     void setSoloBand (int bandIndex);
     int getSoloBand() const { return soloBandIndex; }
@@ -204,7 +210,8 @@ private:
     int maxBlockSize = 512;
     int numChannels = 2;
 
-    // Analog mode state
+    // Character mode state (0=Clean, 1=Gentle, 2=Warm)
+    int characterMode = 0;
     bool analogMode = false;
     juce::Random noiseRng;
     float pinkState[2] = { 0.0f, 0.0f };

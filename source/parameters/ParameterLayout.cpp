@@ -177,17 +177,78 @@ juce::AudioProcessorValueTreeState::ParameterLayout createLayout()
         juce::StringArray { "Low", "Normal", "High", "Max" },
         2)); // Default: High
 
-    // Analog Mode
-    layout.add (std::make_unique<juce::AudioParameterBool> (
+    // Character Mode (replaces Analog Mode bool - backward compat: 0=Clean, 2=Warm)
+    layout.add (std::make_unique<juce::AudioParameterChoice> (
         juce::ParameterID { ParamIDs::kAnalogMode, 1 },
-        "Analog Mode",
-        false));
+        "Character Mode",
+        ParamIDs::getCharacterModeNames(),
+        0)); // Default: Clean
 
     // Phase Invert
     layout.add (std::make_unique<juce::AudioParameterBool> (
         juce::ParameterID { ParamIDs::kPhaseInvert, 1 },
         "Phase Invert",
         false));
+
+    // MIDI Program Change enable
+    layout.add (std::make_unique<juce::AudioParameterBool> (
+        juce::ParameterID { ParamIDs::kMidiProgramChange, 1 },
+        "MIDI Program Change",
+        false));
+
+    // Output Stereo Width (0.0 = mono, 1.0 = normal, 2.0 = wide)
+    layout.add (std::make_unique<juce::AudioParameterFloat> (
+        juce::ParameterID { ParamIDs::kOutputWidth, 1 },
+        "Stereo Width",
+        juce::NormalisableRange<float> (0.0f, 2.0f, 0.01f),
+        1.0f));
+
+    // Linear Phase Quality
+    layout.add (std::make_unique<juce::AudioParameterChoice> (
+        juce::ParameterID { ParamIDs::kLinearPhaseQuality, 1 },
+        "Linear Phase Quality",
+        ParamIDs::getLinearPhaseQualityNames(),
+        1)); // Default: Medium
+
+    // Per-band sidechain source (24 params)
+    for (int i = 0; i < Constants::kMaxBands; ++i)
+    {
+        auto bandName = "Band " + juce::String (i + 1);
+        layout.add (std::make_unique<juce::AudioParameterChoice> (
+            juce::ParameterID { ParamIDs::bandParam (i, ParamIDs::kDynSidechain), 1 },
+            bandName + " Sidechain",
+            juce::StringArray { "Main", "External" },
+            0)); // Default: Main
+    }
+
+    // Per-band spectral dynamics params (4 per band x 24 = 96 params)
+    for (int i = 0; i < Constants::kMaxBands; ++i)
+    {
+        auto bandName = "Band " + juce::String (i + 1);
+
+        layout.add (std::make_unique<juce::AudioParameterBool> (
+            juce::ParameterID { ParamIDs::bandParam (i, ParamIDs::kSpectralOn), 1 },
+            bandName + " Spectral",
+            false));
+
+        layout.add (std::make_unique<juce::AudioParameterFloat> (
+            juce::ParameterID { ParamIDs::bandParam (i, ParamIDs::kSpectralThresh), 1 },
+            bandName + " Spectral Thresh",
+            juce::NormalisableRange<float> (-60.0f, 0.0f, 0.1f),
+            -20.0f));
+
+        layout.add (std::make_unique<juce::AudioParameterFloat> (
+            juce::ParameterID { ParamIDs::bandParam (i, ParamIDs::kSpectralRange), 1 },
+            bandName + " Spectral Range",
+            juce::NormalisableRange<float> (-30.0f, 0.0f, 0.1f),
+            -12.0f));
+
+        layout.add (std::make_unique<juce::AudioParameterFloat> (
+            juce::ParameterID { ParamIDs::bandParam (i, ParamIDs::kSpectralRatio), 1 },
+            bandName + " Spectral Ratio",
+            juce::NormalisableRange<float> (1.0f, 20.0f, 0.1f),
+            4.0f));
+    }
 
     return layout;
 }

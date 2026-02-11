@@ -98,6 +98,9 @@ private:
     std::atomic<float>* rawPhaseInvert = nullptr;
     std::atomic<float>* rawAnalyzerRes = nullptr;
     std::atomic<float>* rawProcessMode = nullptr;
+    std::atomic<float>* rawMidiPC      = nullptr;
+    std::atomic<float>* rawOutputWidth = nullptr;
+    std::atomic<float>* rawLPQuality   = nullptr;
 
     // Output level metering
     std::atomic<float> peakLevelL { -100.0f };

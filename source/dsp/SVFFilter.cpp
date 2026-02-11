@@ -196,6 +196,17 @@ void SVFFilter::updateCoefficients()
             m2 = (A * A - 1.0);
             return;
         }
+
+        case FilterType::AllPass:
+        {
+            // Second-order allpass: flat magnitude, phase rotation at center frequency.
+            // SVF identity: input = HP + k*BP + LP, so AP = HP - k*BP + LP = input - 2*k*BP
+            // k = 1/q is already set above; Q controls steepness of phase transition.
+            m0 = 1.0;
+            m1 = -2.0 * k;
+            m2 = 0.0;
+            break;
+        }
     }
 }
 

@@ -120,6 +120,11 @@ public:
      */
     std::function<void (int)> onBandSelected;
 
+    // Public accessors for editor keyboard shortcuts / toolbar
+    void copyBandToClipboard (int band);
+    void pasteBandFromClipboard (int band);
+    void setSketchMode (bool active) { sketchMode = active; }
+
 private:
     AdvancedEQProcessor& processor;
 
@@ -174,6 +179,13 @@ private:
     void showEmptySpaceContextMenu (float freq, float gain);
 
     void updateCurves();
+
+    // EQ Sketch (sketchMode set via public setSketchMode)
+    bool sketchMode = false;
+    bool isDrawingSketch = false;
+    std::vector<juce::Point<float>> sketchPoints;
+    void processSketch();
+    void drawSketchPath (juce::Graphics& g);
 
     // Spectrum analyzers (pre and post EQ)
     SpectrumAnalyzer spectrumAnalyzerPre;

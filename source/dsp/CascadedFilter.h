@@ -101,6 +101,22 @@ public:
                         double gainDB, int slopeDBPerOct);
 
     /**
+     * @brief Configure the filter with a continuous (fractional) slope value.
+     *
+     * For slopes between standard integer values (e.g. 14.2 dB/oct between 12 and 18),
+     * processes through both adjacent cascades and crossfades the output.
+     * When the slope is close to a standard value (within 0.5 dB/oct), snaps to it.
+     *
+     * @param type          Filter shape.
+     * @param freq          Center or cutoff frequency in Hz.
+     * @param Q             Quality factor.
+     * @param gainDB        Gain in dB.
+     * @param slopeDBPerOct Continuous slope in dB per octave (6.0 to 96.0).
+     */
+    void setParametersFractional (FilterType type, double freq, double Q,
+                                   double gainDB, double slopeDBPerOct);
+
+    /**
      * @brief Process a block of audio samples in-place through all active sections.
      *
      * Samples pass through each active SVFFilter section sequentially.
@@ -145,8 +161,23 @@ public:
      */
     int getNumActiveSections() const { return numActiveSections; }
 
+    /** Returns true if currently in fractional slope crossfade mode. */
+    bool isFractionalMode() const { return fractionalMode; }
+
+    /** Process a block through fractional slope crossfade. */
+    void processFractional (float* buffer, int numSamples);
+
+    /** Process a single sample through fractional slope crossfade. */
+    float processSampleFractional (float input);
+
 private:
     std::array<SVFFilter, kMaxSections> sections;
     int numActiveSections = 1;
     double sampleRate = 44100.0;
+
+    // Fractional slope crossfade
+    bool fractionalMode = false;
+    float fractionalMix = 0.0f; // 0.0 = lower slope, 1.0 = upper slope
+    std::array<SVFFilter, kMaxSections> sectionsB; // Second cascade for upper slope
+    int numActiveSectionsB = 1;
 };

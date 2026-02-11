@@ -64,6 +64,12 @@ public:
         rawDynRange   = apvts.getRawParameterValue (ParamIDs::bandParam (bandIndex, ParamIDs::kDynRange));
         rawDynAttack  = apvts.getRawParameterValue (ParamIDs::bandParam (bandIndex, ParamIDs::kDynAttack));
         rawDynRelease = apvts.getRawParameterValue (ParamIDs::bandParam (bandIndex, ParamIDs::kDynRelease));
+
+        // Spectral dynamics
+        rawSpectralOn     = apvts.getRawParameterValue (ParamIDs::bandParam (bandIndex, ParamIDs::kSpectralOn));
+        rawSpectralThresh = apvts.getRawParameterValue (ParamIDs::bandParam (bandIndex, ParamIDs::kSpectralThresh));
+        rawSpectralRange  = apvts.getRawParameterValue (ParamIDs::bandParam (bandIndex, ParamIDs::kSpectralRange));
+        rawSpectralRatio  = apvts.getRawParameterValue (ParamIDs::bandParam (bandIndex, ParamIDs::kSpectralRatio));
     }
 
     /**
@@ -107,4 +113,17 @@ private:
     std::atomic<float>* rawDynRange   = nullptr;
     std::atomic<float>* rawDynAttack  = nullptr;
     std::atomic<float>* rawDynRelease = nullptr;
+
+    // Spectral dynamics
+    std::atomic<float>* rawSpectralOn     = nullptr;
+    std::atomic<float>* rawSpectralThresh = nullptr;
+    std::atomic<float>* rawSpectralRange  = nullptr;
+    std::atomic<float>* rawSpectralRatio  = nullptr;
+
+public:
+    // Spectral dynamics accessors (separate from BandParameters struct)
+    bool   getSpectralEnabled()   const { return rawSpectralOn && rawSpectralOn->load() > 0.5f; }
+    float  getSpectralThreshold() const { return rawSpectralThresh ? rawSpectralThresh->load() : -20.0f; }
+    float  getSpectralRange()     const { return rawSpectralRange ? rawSpectralRange->load() : -12.0f; }
+    float  getSpectralRatio()     const { return rawSpectralRatio ? rawSpectralRatio->load() : 4.0f; }
 };

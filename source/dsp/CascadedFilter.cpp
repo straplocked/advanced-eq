@@ -11,6 +11,8 @@
 
 #include "CascadedFilter.h"
 #include <cmath>
+#include <cstring>
+#include <memory>
 
 static constexpr double kPi = 3.14159265358979323846;
 
@@ -19,11 +21,15 @@ void CascadedFilter::prepare (double sr)
     sampleRate = sr;
     for (auto& section : sections)
         section.prepare (sr);
+    for (auto& section : sectionsB)
+        section.prepare (sr);
 }
 
 void CascadedFilter::reset()
 {
     for (auto& section : sections)
+        section.reset();
+    for (auto& section : sectionsB)
         section.reset();
 }
 
@@ -39,6 +45,7 @@ void CascadedFilter::setParameters (FilterType type, double freq, double Q,
         case FilterType::BandPass:
         case FilterType::TiltShelf:
         case FilterType::FlatTilt:
+        case FilterType::AllPass:
         {
             // These types always use a single section (slope doesn't apply)
             numActiveSections = 1;
@@ -130,4 +137,158 @@ double CascadedFilter::getMagnitudeAtFrequency (double freq) const
 {
     auto response = getResponse (freq);
     return 20.0 * std::log10 (std::max (std::abs (response), 1e-10));
+}
+
+void CascadedFilter::setParametersFractional (FilterType type, double freq, double Q,
+                                                double gainDB, double slopeDBPerOct)
+{
+    // Standard slope values
+    static const int standardSlopes[] = { 6, 12, 18, 24, 36, 48, 72, 96 };
+    static const int numStandard = 8;
+
+    // Only HP/LP/Shelf types support fractional slopes
+    if (type != FilterType::HighPass && type != FilterType::LowPass
+        && type != FilterType::LowShelf && type != FilterType::HighShelf)
+    {
+        fractionalMode = false;
+        setParameters (type, freq, Q, gainDB, 12);
+        return;
+    }
+
+    // Clamp to range
+    double slope = std::max (6.0, std::min (slopeDBPerOct, 96.0));
+
+    // Find bracketing standard slopes
+    int lowerSlope = 6;
+    int upperSlope = 12;
+
+    for (int i = 0; i < numStandard - 1; ++i)
+    {
+        if (slope >= standardSlopes[i] && slope <= standardSlopes[i + 1])
+        {
+            lowerSlope = standardSlopes[i];
+            upperSlope = standardSlopes[i + 1];
+            break;
+        }
+    }
+
+    // Snap to nearest standard if close (within 0.5 dB/oct)
+    double distToLower = std::abs (slope - lowerSlope);
+    double distToUpper = std::abs (slope - upperSlope);
+
+    if (distToLower <= 0.5)
+    {
+        fractionalMode = false;
+        setParameters (type, freq, Q, gainDB, lowerSlope);
+        return;
+    }
+
+    if (distToUpper <= 0.5)
+    {
+        fractionalMode = false;
+        setParameters (type, freq, Q, gainDB, upperSlope);
+        return;
+    }
+
+    // Fractional mode: crossfade between lower and upper
+    fractionalMode = true;
+    fractionalMix = (float) ((slope - lowerSlope) / (double) (upperSlope - lowerSlope));
+
+    // Configure primary cascade (lower slope)
+    setParameters (type, freq, Q, gainDB, lowerSlope);
+
+    // Configure secondary cascade (upper slope)
+    auto slopeInfoB = getSlopeInfo (upperSlope);
+    numActiveSectionsB = slopeInfoB.numSections;
+
+    if (type == FilterType::HighPass || type == FilterType::LowPass)
+    {
+        int orderB = upperSlope / 6;
+        int numSecondOrderB = slopeInfoB.lastIsFirstOrder
+                                  ? numActiveSectionsB - 1
+                                  : numActiveSectionsB;
+
+        for (int i = 0; i < numSecondOrderB; ++i)
+        {
+            double angle = kPi * (2.0 * i + 1.0) / (2.0 * orderB);
+            double butterworthQ = 1.0 / (2.0 * std::cos (angle));
+            sectionsB[i].setFirstOrder (false);
+            sectionsB[i].setParameters (type, freq, butterworthQ, 0.0);
+        }
+
+        if (slopeInfoB.lastIsFirstOrder)
+        {
+            int lastIdx = numActiveSectionsB - 1;
+            sectionsB[lastIdx].setFirstOrder (true);
+            sectionsB[lastIdx].setParameters (type, freq, 0.707, 0.0);
+        }
+    }
+    else // Shelves
+    {
+        double perSectionGain = gainDB / numActiveSectionsB;
+        for (int i = 0; i < numActiveSectionsB; ++i)
+        {
+            bool isLast = (i == numActiveSectionsB - 1);
+            bool useFirstOrder = isLast && slopeInfoB.lastIsFirstOrder;
+            sectionsB[i].setFirstOrder (useFirstOrder);
+            sectionsB[i].setParameters (type, freq, Q, perSectionGain);
+        }
+    }
+}
+
+void CascadedFilter::processFractional (float* buffer, int numSamples)
+{
+    if (! fractionalMode)
+    {
+        process (buffer, numSamples);
+        return;
+    }
+
+    // Process through both cascades and crossfade
+    // Use stack buffer for small blocks, heap for large
+    constexpr int kStackLimit = 2048;
+    float stackBuf[kStackLimit];
+    std::unique_ptr<float[]> heapBuf;
+    float* bufferB;
+    if (numSamples <= kStackLimit)
+    {
+        bufferB = stackBuf;
+    }
+    else
+    {
+        heapBuf.reset (new float[(size_t) numSamples]);
+        bufferB = heapBuf.get();
+    }
+    std::memcpy (bufferB, buffer, sizeof (float) * (size_t) numSamples);
+
+    // Process primary (lower slope)
+    for (int s = 0; s < numActiveSections; ++s)
+        sections[s].process (buffer, numSamples);
+
+    // Process secondary (upper slope)
+    for (int s = 0; s < numActiveSectionsB; ++s)
+        sectionsB[s].process (bufferB, numSamples);
+
+    // Crossfade
+    float mixB = fractionalMix;
+    float mixA = 1.0f - mixB;
+    for (int i = 0; i < numSamples; ++i)
+        buffer[i] = buffer[i] * mixA + bufferB[i] * mixB;
+}
+
+float CascadedFilter::processSampleFractional (float input)
+{
+    if (! fractionalMode)
+        return processSample (input);
+
+    // Process through both cascades
+    float outputA = input;
+    for (int i = 0; i < numActiveSections; ++i)
+        outputA = sections[i].processSample (outputA);
+
+    float outputB = input;
+    for (int i = 0; i < numActiveSectionsB; ++i)
+        outputB = sectionsB[i].processSample (outputB);
+
+    return outputA * (1.0f - fractionalMix) + outputB * fractionalMix;
 }

@@ -7,7 +7,7 @@
 #include "EqBand.h"
 #include <cmath>
 
-void EqBand::prepare (double sr, int /*maxBlockSize*/)
+void EqBand::prepare (double sr, int maxBlockSize)
 {
     sampleRate = sr;
 
@@ -22,6 +22,8 @@ void EqBand::prepare (double sr, int /*maxBlockSize*/)
         e.prepare (sr);
     for (auto& d : dynamicProcs)
         d.prepare (sr);
+    for (auto& sp : spectralProcs)
+        sp.prepare (sr, maxBlockSize);
 }
 
 void EqBand::reset()
@@ -32,11 +34,30 @@ void EqBand::reset()
         e.reset();
     for (auto& d : dynamicProcs)
         d.reset();
+    for (auto& sp : spectralProcs)
+        sp.reset();
 }
 
 void EqBand::setAnalogMode (bool enabled)
 {
     analogMode = enabled;
+}
+
+void EqBand::setCharacterMode (int mode)
+{
+    characterMode = mode;
+    analogMode = (mode >= 1);
+}
+
+void EqBand::setSpectralDynamics (bool enabled, float threshold, float range, float ratio)
+{
+    spectralEnabled = enabled;
+    spectralThreshold = threshold;
+    spectralRange = range;
+    spectralRatio = ratio;
+
+    for (auto& sp : spectralProcs)
+        sp.setParameters (threshold, range, ratio);
 }
 
 float EqBand::saturate (float x)
@@ -103,6 +124,15 @@ void EqBand::process (juce::AudioBuffer<float>& buffer, int numSamples)
     if (! active)
         return;
 
+    // Spectral dynamics path: use STFT overlap-add instead of IIR cascade
+    if (spectralEnabled)
+    {
+        int numChannels = juce::jmin (buffer.getNumChannels(), kMaxChannels);
+        for (int ch = 0; ch < numChannels; ++ch)
+            spectralProcs[ch].process (buffer.getWritePointer (ch), numSamples);
+        return;
+    }
+
     bool isSmoothing = smoothedFreq.isSmoothing() || smoothedGain.isSmoothing() || smoothedQ.isSmoothing();
 
     int numChannels = juce::jmin (buffer.getNumChannels(), kMaxChannels);
@@ -157,14 +187,22 @@ void EqBand::process (juce::AudioBuffer<float>& buffer, int numSamples)
             filters[ch].process (buffer.getWritePointer (ch), numSamples);
     }
 
-    // Per-band analog saturation
-    if (analogMode)
+    // Per-band saturation (Gentle: even-harmonic, Warm: full)
+    if (characterMode >= 1)
     {
         for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
         {
             float* data = buffer.getWritePointer (ch);
-            for (int i = 0; i < numSamples; ++i)
-                data[i] = saturate (data[i]);
+            if (characterMode == 1)
+            {
+                for (int i = 0; i < numSamples; ++i)
+                    data[i] = data[i] + 0.15f * data[i] * data[i]; // Even-harmonic
+            }
+            else
+            {
+                for (int i = 0; i < numSamples; ++i)
+                    data[i] = saturate (data[i]);
+            }
         }
     }
 }
@@ -209,11 +247,19 @@ void EqBand::processSingleChannel (float* channelData, int numSamples)
         filterL.process (channelData, numSamples);
     }
 
-    // Per-band analog saturation
-    if (analogMode)
+    // Per-band saturation (Gentle: even-harmonic, Warm: full)
+    if (characterMode >= 1)
     {
-        for (int i = 0; i < numSamples; ++i)
-            channelData[i] = saturate (channelData[i]);
+        if (characterMode == 1)
+        {
+            for (int i = 0; i < numSamples; ++i)
+                channelData[i] = channelData[i] + 0.15f * channelData[i] * channelData[i];
+        }
+        else
+        {
+            for (int i = 0; i < numSamples; ++i)
+                channelData[i] = saturate (channelData[i]);
+        }
     }
 }
 
@@ -261,10 +307,18 @@ void EqBand::processChannel (float* channelData, int numSamples, int channelInde
         filter.process (channelData, numSamples);
     }
 
-    if (analogMode)
+    if (characterMode >= 1)
     {
-        for (int i = 0; i < numSamples; ++i)
-            channelData[i] = saturate (channelData[i]);
+        if (characterMode == 1)
+        {
+            for (int i = 0; i < numSamples; ++i)
+                channelData[i] = channelData[i] + 0.15f * channelData[i] * channelData[i];
+        }
+        else
+        {
+            for (int i = 0; i < numSamples; ++i)
+                channelData[i] = saturate (channelData[i]);
+        }
     }
 }
 

@@ -69,6 +69,26 @@ namespace ParamIDs
     constexpr const char* kAnalyzerSpd = "analyzer_speed";
     constexpr const char* kAnalogMode  = "analog_mode";
     constexpr const char* kPhaseInvert = "phase_invert";
+    constexpr const char* kMidiProgramChange = "midi_pc";
+    constexpr const char* kOutputWidth = "output_width";
+    constexpr const char* kLinearPhaseQuality = "lp_quality";
+    constexpr const char* kDynSidechain = "dyn_sc";
+
+    // Per-band spectral dynamics suffixes
+    constexpr const char* kSpectralOn     = "spectral_on";
+    constexpr const char* kSpectralThresh = "spectral_thresh";
+    constexpr const char* kSpectralRange  = "spectral_range";
+    constexpr const char* kSpectralRatio  = "spectral_ratio";
+
+    inline juce::StringArray getCharacterModeNames()
+    {
+        return { "Clean", "Gentle", "Warm" };
+    }
+
+    inline juce::StringArray getLinearPhaseQualityNames()
+    {
+        return { "Low", "Medium", "High" };
+    }
 
     /**
      * @brief Returns the display names for all filter types.
@@ -82,7 +102,7 @@ namespace ParamIDs
     inline juce::StringArray getFilterTypeNames()
     {
         return { "Bell", "Low Shelf", "High Shelf", "High Pass",
-                 "Low Pass", "Notch", "Band Pass", "Tilt Shelf", "Flat Tilt" };
+                 "Low Pass", "Notch", "Band Pass", "Tilt Shelf", "Flat Tilt", "All Pass" };
     }
 
     /**

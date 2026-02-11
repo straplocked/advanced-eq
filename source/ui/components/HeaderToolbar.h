@@ -33,6 +33,9 @@ public:
     std::function<void (bool)> onFreezeToggled;
     std::function<void()> onMatchClicked;
     std::function<void (bool)> onHelpToggled;
+    std::function<void (bool)> onSketchToggled;
+    std::function<void()> onBrowseClicked;
+    std::function<void()> onFullscreenClicked;
 
 private:
     AdvancedEQProcessor& processor;
@@ -52,21 +55,31 @@ private:
 
     // Right-side controls
     juce::TextButton phaseInvertButton { juce::String::charToString (0x00D8) }; // Ø symbol
-    juce::TextButton analogButton { "Analog" };
+    juce::ComboBox characterSelector;
     juce::TextButton analyzerButton { "Analyzer" };
     juce::TextButton freezeButton { "Freeze" };
     juce::TextButton matchButton { "Match" };
+    juce::TextButton sketchButton { "Sketch" };
+    juce::TextButton browseButton { "Browse" };
+    juce::TextButton midiPCButton { "MIDI PC" };
+    juce::TextButton fullscreenButton { "FS" };
     juce::TextButton helpButton { "?" };
     juce::ComboBox processModeSelector;
+    juce::ComboBox lpQualitySelector;
     juce::Slider outputGainSlider;
+    juce::Slider outputWidthSlider;
     juce::Label outputGainLabel;
+    juce::Label outputWidthLabel;
 
     // Attachments
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> phaseInvertAttachment;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> analogAttachment;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> characterAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> analyzerAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> processModeAttachment;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> lpQualityAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> outputGainAttachment;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> outputWidthAttachment;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> midiPCAttachment;
 
     void showPresetMenu();
     void showSaveDialog();

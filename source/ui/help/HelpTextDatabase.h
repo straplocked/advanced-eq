@@ -36,7 +36,7 @@ inline juce::String getHelpText (const juce::String& componentID)
         { "curve.display",       "EQ Curve Display \xe2\x80\x94 click to add a band, drag to adjust frequency/gain, scroll for Q, double-click to remove. Right-click for options." },
 
         // BottomControlStrip
-        { "bottom.typeSelector",    "Filter Type \xe2\x80\x94 Bell, Low Shelf, High Shelf, High Pass, Low Pass, Notch, Band Pass, Tilt Shelf, or Flat Tilt." },
+        { "bottom.typeSelector",    "Filter Type \xe2\x80\x94 Bell, Low Shelf, High Shelf, High Pass, Low Pass, Notch, Band Pass, Tilt Shelf, Flat Tilt, or All Pass." },
         { "bottom.freqKnob",        "Frequency \xe2\x80\x94 center/cutoff frequency of the selected band (10 Hz \xe2\x80\x93 30 kHz)." },
         { "bottom.gainKnob",        "Gain \xe2\x80\x94 boost or cut amount (-30 to +30 dB)." },
         { "bottom.qKnob",           "Q (Bandwidth) \xe2\x80\x94 higher Q = narrower band. Range: 0.1 to 30." },

@@ -255,7 +255,8 @@ void BottomControlStrip::updateSlopeEnabled()
     bool slopeApplies = (type == FilterType::LowPass
                       || type == FilterType::HighPass
                       || type == FilterType::LowShelf
-                      || type == FilterType::HighShelf);
+                      || type == FilterType::HighShelf)
+                    && type != FilterType::AllPass;
 
     slopeSelector.setEnabled (slopeApplies);
     slopeSelector.setAlpha (slopeApplies ? 1.0f : 0.4f);

@@ -210,8 +210,10 @@ void EqCurveDisplay::paint (juce::Graphics& g)
     }
 
     drawBandCurves (g);
-    if (showPreview)
+    if (showPreview && ! sketchMode)
         drawPreviewCurve (g);
+    if (sketchMode && ! sketchPoints.empty())
+        drawSketchPath (g);
     drawCompositeCurve (g);
     drawBandHandles (g);
     drawFrequencyLabels (g);
@@ -680,6 +682,15 @@ void EqCurveDisplay::mouseDown (const juce::MouseEvent& e)
         }
     }
 
+    // Sketch mode: capture drawing
+    if (sketchMode && e.mods.isLeftButtonDown() && ! e.mods.isPopupMenu())
+    {
+        isDrawingSketch = true;
+        sketchPoints.clear();
+        sketchPoints.push_back (pos);
+        return;
+    }
+
     int band = findBandAtPosition (pos);
 
     // Right-click context menu
@@ -726,6 +737,13 @@ void EqCurveDisplay::mouseDown (const juce::MouseEvent& e)
 
 void EqCurveDisplay::mouseDrag (const juce::MouseEvent& e)
 {
+    if (isDrawingSketch)
+    {
+        sketchPoints.push_back (e.position);
+        repaint();
+        return;
+    }
+
     if (! isDragging || selectedBand < 0)
         return;
 
@@ -745,6 +763,14 @@ void EqCurveDisplay::mouseDrag (const juce::MouseEvent& e)
 
 void EqCurveDisplay::mouseUp (const juce::MouseEvent&)
 {
+    if (isDrawingSketch)
+    {
+        isDrawingSketch = false;
+        processSketch();
+        sketchPoints.clear();
+        repaint();
+        return;
+    }
     isDragging = false;
 }
 
@@ -864,6 +890,9 @@ void EqCurveDisplay::showBandContextMenu (int band)
 
     menu.addSeparator();
     menu.addItem (3, "Reset Band");
+    menu.addItem (4, "Split L/R");
+    menu.addItem (5, "Copy Band");
+    menu.addItem (6, "Paste Band");
 
     menu.showMenuAsync (juce::PopupMenu::Options(),
         [this, band] (int result)
@@ -922,6 +951,71 @@ void EqCurveDisplay::showBandContextMenu (int band)
                 if (auto* p = apvts2.getParameter (ParamIDs::bandParam (band, ParamIDs::kStereo)))
                     p->setValueNotifyingHost (p->convertTo0to1 ((float) stereoIndex));
             }
+            else if (result == 4) // Split L/R
+            {
+                // Find two inactive bands
+                int bandL = -1, bandR = -1;
+                for (int b = 0; b < Constants::kMaxBands; ++b)
+                {
+                    auto* active = apvts2.getRawParameterValue (ParamIDs::bandParam (b, ParamIDs::kActive));
+                    if (b != band && active->load() < 0.5f)
+                    {
+                        if (bandL < 0) bandL = b;
+                        else if (bandR < 0) { bandR = b; break; }
+                    }
+                }
+
+                if (bandL < 0 || bandR < 0)
+                    return; // Not enough inactive bands
+
+                // Copy all params from source to both new bands
+                auto copyBandParam = [&] (int src, int dst)
+                {
+                    static const char* suffixes[] = {
+                        ParamIDs::kType, ParamIDs::kFrequency, ParamIDs::kGain, ParamIDs::kQ,
+                        ParamIDs::kSlope, ParamIDs::kDynEnabled, ParamIDs::kDynThresh,
+                        ParamIDs::kDynRange, ParamIDs::kDynAttack, ParamIDs::kDynRelease
+                    };
+                    for (auto* suffix : suffixes)
+                    {
+                        auto* srcP = apvts2.getParameter (ParamIDs::bandParam (src, suffix));
+                        auto* dstP = apvts2.getParameter (ParamIDs::bandParam (dst, suffix));
+                        if (srcP && dstP)
+                            dstP->setValueNotifyingHost (srcP->getValue());
+                    }
+                };
+
+                copyBandParam (band, bandL);
+                copyBandParam (band, bandR);
+
+                // Set stereo placement
+                if (auto* p = apvts2.getParameter (ParamIDs::bandParam (bandL, ParamIDs::kStereo)))
+                    p->setValueNotifyingHost (p->convertTo0to1 (1.0f)); // Left
+                if (auto* p = apvts2.getParameter (ParamIDs::bandParam (bandR, ParamIDs::kStereo)))
+                    p->setValueNotifyingHost (p->convertTo0to1 (2.0f)); // Right
+
+                // Activate both
+                if (auto* p = apvts2.getParameter (ParamIDs::bandParam (bandL, ParamIDs::kActive)))
+                    p->setValueNotifyingHost (1.0f);
+                if (auto* p = apvts2.getParameter (ParamIDs::bandParam (bandR, ParamIDs::kActive)))
+                    p->setValueNotifyingHost (1.0f);
+
+                // Deactivate original
+                if (auto* p = apvts2.getParameter (ParamIDs::bandParam (band, ParamIDs::kActive)))
+                    p->setValueNotifyingHost (0.0f);
+
+                selectedBand = bandL;
+                if (onBandSelected)
+                    onBandSelected (selectedBand);
+            }
+            else if (result == 5) // Copy Band
+            {
+                copyBandToClipboard (band);
+            }
+            else if (result == 6) // Paste Band
+            {
+                pasteBandFromClipboard (band);
+            }
 
             repaint();
         });
@@ -931,6 +1025,7 @@ void EqCurveDisplay::showEmptySpaceContextMenu (float freq, float gain)
 {
     juce::PopupMenu menu;
     menu.addItem (1, "Add Band Here");
+    menu.addItem (7, "Paste Band Here");
 
     menu.showMenuAsync (juce::PopupMenu::Options(),
         [this, freq, gain] (int result)
@@ -942,5 +1037,231 @@ void EqCurveDisplay::showEmptySpaceContextMenu (float freq, float gain)
                     onBandSelected (selectedBand);
                 repaint();
             }
+            else if (result == 7)
+            {
+                int newBand = findFirstInactiveBand();
+                if (newBand >= 0)
+                {
+                    auto& apvts2 = processor.getAPVTS();
+                    if (auto* p = apvts2.getParameter (ParamIDs::bandParam (newBand, ParamIDs::kActive)))
+                        p->setValueNotifyingHost (1.0f);
+                    pasteBandFromClipboard (newBand);
+                    selectedBand = newBand;
+                    if (onBandSelected)
+                        onBandSelected (selectedBand);
+                    repaint();
+                }
+            }
         });
+}
+
+// --- Band Clipboard ---
+
+void EqCurveDisplay::copyBandToClipboard (int band)
+{
+    auto& apvts = processor.getAPVTS();
+
+    juce::DynamicObject::Ptr obj = new juce::DynamicObject();
+    obj->setProperty ("type",        (int) apvts.getRawParameterValue (ParamIDs::bandParam (band, ParamIDs::kType))->load());
+    obj->setProperty ("frequency",   (double) apvts.getRawParameterValue (ParamIDs::bandParam (band, ParamIDs::kFrequency))->load());
+    obj->setProperty ("gain",        (double) apvts.getRawParameterValue (ParamIDs::bandParam (band, ParamIDs::kGain))->load());
+    obj->setProperty ("q",           (double) apvts.getRawParameterValue (ParamIDs::bandParam (band, ParamIDs::kQ))->load());
+    obj->setProperty ("slope",       (int) apvts.getRawParameterValue (ParamIDs::bandParam (band, ParamIDs::kSlope))->load());
+    obj->setProperty ("stereo",      (int) apvts.getRawParameterValue (ParamIDs::bandParam (band, ParamIDs::kStereo))->load());
+    obj->setProperty ("dyn_on",      (bool) (apvts.getRawParameterValue (ParamIDs::bandParam (band, ParamIDs::kDynEnabled))->load() >= 0.5f));
+    obj->setProperty ("dyn_thresh",  (double) apvts.getRawParameterValue (ParamIDs::bandParam (band, ParamIDs::kDynThresh))->load());
+    obj->setProperty ("dyn_range",   (double) apvts.getRawParameterValue (ParamIDs::bandParam (band, ParamIDs::kDynRange))->load());
+    obj->setProperty ("dyn_attack",  (double) apvts.getRawParameterValue (ParamIDs::bandParam (band, ParamIDs::kDynAttack))->load());
+    obj->setProperty ("dyn_release", (double) apvts.getRawParameterValue (ParamIDs::bandParam (band, ParamIDs::kDynRelease))->load());
+
+    juce::String json = "AdvancedEQ_Band_v1:" + juce::JSON::toString (juce::var (obj.get()));
+    juce::SystemClipboard::copyTextToClipboard (json);
+}
+
+void EqCurveDisplay::pasteBandFromClipboard (int band)
+{
+    auto text = juce::SystemClipboard::getTextFromClipboard();
+    if (! text.startsWith ("AdvancedEQ_Band_v1:"))
+        return;
+
+    auto json = text.fromFirstOccurrenceOf ("AdvancedEQ_Band_v1:", false, false);
+    auto parsed = juce::JSON::parse (json);
+    if (! parsed.isObject())
+        return;
+
+    auto& apvts = processor.getAPVTS();
+    auto* obj = parsed.getDynamicObject();
+    if (obj == nullptr)
+        return;
+
+    auto setParam = [&] (const char* suffix, const juce::String& propName)
+    {
+        if (obj->hasProperty (propName))
+        {
+            if (auto* p = apvts.getParameter (ParamIDs::bandParam (band, suffix)))
+                p->setValueNotifyingHost (p->convertTo0to1 ((float) (double) obj->getProperty (propName)));
+        }
+    };
+
+    setParam (ParamIDs::kType,       "type");
+    setParam (ParamIDs::kFrequency,  "frequency");
+    setParam (ParamIDs::kGain,       "gain");
+    setParam (ParamIDs::kQ,          "q");
+    setParam (ParamIDs::kSlope,      "slope");
+    setParam (ParamIDs::kStereo,     "stereo");
+    setParam (ParamIDs::kDynThresh,  "dyn_thresh");
+    setParam (ParamIDs::kDynRange,   "dyn_range");
+    setParam (ParamIDs::kDynAttack,  "dyn_attack");
+    setParam (ParamIDs::kDynRelease, "dyn_release");
+
+    // Handle dynamic enable (bool)
+    if (obj->hasProperty ("dyn_on"))
+    {
+        if (auto* p = apvts.getParameter (ParamIDs::bandParam (band, ParamIDs::kDynEnabled)))
+            p->setValueNotifyingHost ((bool) obj->getProperty ("dyn_on") ? 1.0f : 0.0f);
+    }
+}
+
+// --- EQ Sketch ---
+
+void EqCurveDisplay::drawSketchPath (juce::Graphics& g)
+{
+    if (sketchPoints.size() < 2)
+        return;
+
+    juce::Path path;
+    path.startNewSubPath (sketchPoints[0]);
+    for (size_t i = 1; i < sketchPoints.size(); ++i)
+        path.lineTo (sketchPoints[i]);
+
+    g.setColour (juce::Colour (0xaaffcc00));
+    g.strokePath (path, juce::PathStrokeType (2.0f));
+}
+
+void EqCurveDisplay::processSketch()
+{
+    if (sketchPoints.size() < 3)
+        return;
+
+    // Resample sketch points to 512-point log-frequency grid
+    constexpr int gridSize = 512;
+    std::vector<float> sketchCurve (gridSize, 0.0f);
+    float w = (float) getWidth();
+
+    for (int i = 0; i < gridSize; ++i)
+    {
+        float x = (float) i / (float) (gridSize - 1) * w;
+
+        // Find nearest sketch points and interpolate
+        float bestDist = 999999.0f;
+        float value = 0.0f;
+        for (auto& pt : sketchPoints)
+        {
+            float dist = std::abs (pt.x - x);
+            if (dist < bestDist)
+            {
+                bestDist = dist;
+                value = yToGain (pt.y);
+            }
+        }
+        sketchCurve[(size_t) i] = value;
+    }
+
+    // Smooth with 5-point moving average
+    std::vector<float> smoothed (gridSize, 0.0f);
+    for (int i = 0; i < gridSize; ++i)
+    {
+        float sum = 0.0f;
+        int count = 0;
+        for (int j = i - 2; j <= i + 2; ++j)
+        {
+            if (j >= 0 && j < gridSize)
+            {
+                sum += sketchCurve[(size_t) j];
+                ++count;
+            }
+        }
+        smoothed[(size_t) i] = sum / (float) count;
+    }
+
+    // Peak-pick: find up to 8 significant peaks/valleys
+    struct SketchBand { float freq; float gain; float q; };
+    std::vector<SketchBand> matchBands;
+
+    std::vector<float> residual = smoothed;
+
+    for (int iter = 0; iter < 8; ++iter)
+    {
+        int peakIdx = 0;
+        float peakAbs = 0.0f;
+        for (int i = 2; i < gridSize - 2; ++i)
+        {
+            float absVal = std::abs (residual[(size_t) i]);
+            if (absVal > peakAbs)
+            {
+                peakAbs = absVal;
+                peakIdx = i;
+            }
+        }
+
+        if (peakAbs < 1.0f)
+            break;
+
+        float peakX = (float) peakIdx / (float) (gridSize - 1) * w;
+        float freq = xToFrequency (peakX);
+        float gain = residual[(size_t) peakIdx];
+
+        // Estimate Q from peak width
+        float halfGain = peakAbs * 0.5f;
+        int leftIdx = peakIdx, rightIdx = peakIdx;
+        for (int i = peakIdx - 1; i >= 0; --i)
+        {
+            if (std::abs (residual[(size_t) i]) < halfGain) { leftIdx = i; break; }
+            leftIdx = i;
+        }
+        for (int i = peakIdx + 1; i < gridSize; ++i)
+        {
+            if (std::abs (residual[(size_t) i]) < halfGain) { rightIdx = i; break; }
+            rightIdx = i;
+        }
+
+        float leftFreq = xToFrequency ((float) leftIdx / (float) (gridSize - 1) * w);
+        float rightFreq = xToFrequency ((float) rightIdx / (float) (gridSize - 1) * w);
+        float bw = rightFreq - leftFreq;
+        float q = (bw > 0.0f) ? freq / bw : 1.0f;
+        q = juce::jlimit (0.1f, 10.0f, q);
+        gain = juce::jlimit (-15.0f, 15.0f, gain);
+
+        matchBands.push_back ({ freq, gain, q });
+
+        // Subtract bell response from residual
+        for (int i = 0; i < gridSize; ++i)
+        {
+            float bx = (float) i / (float) (gridSize - 1) * w;
+            float bf = xToFrequency (bx);
+            float logRatio = std::log2 (bf / freq);
+            float bellMag = gain * std::exp (-0.5f * logRatio * logRatio * q * q * 4.0f);
+            residual[(size_t) i] -= bellMag;
+        }
+    }
+
+    // Activate bands
+    auto& apvts = processor.getAPVTS();
+    for (auto& mb : matchBands)
+    {
+        int bandIdx = findFirstInactiveBand();
+        if (bandIdx < 0)
+            break;
+
+        if (auto* p = apvts.getParameter (ParamIDs::bandParam (bandIdx, ParamIDs::kActive)))
+            p->setValueNotifyingHost (1.0f);
+        if (auto* p = apvts.getParameter (ParamIDs::bandParam (bandIdx, ParamIDs::kType)))
+            p->setValueNotifyingHost (p->convertTo0to1 (0.0f)); // Bell
+        if (auto* p = apvts.getParameter (ParamIDs::bandParam (bandIdx, ParamIDs::kFrequency)))
+            p->setValueNotifyingHost (p->convertTo0to1 (mb.freq));
+        if (auto* p = apvts.getParameter (ParamIDs::bandParam (bandIdx, ParamIDs::kGain)))
+            p->setValueNotifyingHost (p->convertTo0to1 (mb.gain));
+        if (auto* p = apvts.getParameter (ParamIDs::bandParam (bandIdx, ParamIDs::kQ)))
+            p->setValueNotifyingHost (p->convertTo0to1 (mb.q));
+    }
 }

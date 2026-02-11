@@ -84,11 +84,12 @@ HeaderToolbar::HeaderToolbar (AdvancedEQProcessor& p)
     phaseInvertAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (
         apvts, ParamIDs::kPhaseInvert, phaseInvertButton);
 
-    analogButton.setClickingTogglesState (true);
-    analogButton.setColour (juce::TextButton::buttonOnColourId, ColourPalette::analogAccent().withAlpha (0.3f));
-    addAndMakeVisible (analogButton);
-    analogAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (
-        apvts, ParamIDs::kAnalogMode, analogButton);
+    // Character mode selector (replaces analog button)
+    characterSelector.addItemList (ParamIDs::getCharacterModeNames(), 1);
+    characterSelector.setJustificationType (juce::Justification::centred);
+    addAndMakeVisible (characterSelector);
+    characterAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (
+        apvts, ParamIDs::kAnalogMode, characterSelector);
 
     analyzerButton.setClickingTogglesState (true);
     analyzerButton.setColour (juce::TextButton::buttonOnColourId, ColourPalette::compositeCurve().withAlpha (0.3f));
@@ -113,6 +114,63 @@ HeaderToolbar::HeaderToolbar (AdvancedEQProcessor& p)
             onMatchClicked();
     };
     addAndMakeVisible (matchButton);
+
+    // Sketch button
+    sketchButton.setClickingTogglesState (true);
+    sketchButton.setColour (juce::TextButton::buttonOnColourId, juce::Colour (0xffffcc00).withAlpha (0.3f));
+    sketchButton.onClick = [this]
+    {
+        if (onSketchToggled)
+            onSketchToggled (sketchButton.getToggleState());
+    };
+    addAndMakeVisible (sketchButton);
+
+    // Browse button
+    browseButton.setColour (juce::TextButton::buttonColourId, juce::Colours::transparentBlack);
+    browseButton.setColour (juce::TextButton::textColourOffId, ColourPalette::textDim());
+    browseButton.onClick = [this]
+    {
+        if (onBrowseClicked)
+            onBrowseClicked();
+    };
+    addAndMakeVisible (browseButton);
+
+    // MIDI Program Change toggle
+    midiPCButton.setClickingTogglesState (true);
+    midiPCButton.setColour (juce::TextButton::buttonOnColourId, juce::Colour (0xff66ccff).withAlpha (0.3f));
+    addAndMakeVisible (midiPCButton);
+    midiPCAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (
+        apvts, ParamIDs::kMidiProgramChange, midiPCButton);
+
+    // Fullscreen button
+    fullscreenButton.setColour (juce::TextButton::buttonColourId, juce::Colours::transparentBlack);
+    fullscreenButton.setColour (juce::TextButton::textColourOffId, ColourPalette::textDim());
+    fullscreenButton.onClick = [this]
+    {
+        if (onFullscreenClicked)
+            onFullscreenClicked();
+    };
+    addAndMakeVisible (fullscreenButton);
+
+    // Linear phase quality selector (hidden until LP mode selected)
+    lpQualitySelector.addItemList (ParamIDs::getLinearPhaseQualityNames(), 1);
+    lpQualitySelector.setJustificationType (juce::Justification::centred);
+    addAndMakeVisible (lpQualitySelector);
+    lpQualityAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (
+        apvts, ParamIDs::kLinearPhaseQuality, lpQualitySelector);
+
+    // Output width knob
+    outputWidthSlider.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
+    outputWidthSlider.setTextBoxStyle (juce::Slider::NoTextBox, true, 0, 0);
+    addAndMakeVisible (outputWidthSlider);
+    outputWidthAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
+        apvts, ParamIDs::kOutputWidth, outputWidthSlider);
+
+    outputWidthLabel.setText ("W", juce::dontSendNotification);
+    outputWidthLabel.setJustificationType (juce::Justification::centred);
+    outputWidthLabel.setFont (10.0f);
+    outputWidthLabel.setColour (juce::Label::textColourId, ColourPalette::axisText());
+    addAndMakeVisible (outputWidthLabel);
 
     // Help mode toggle
     helpButton.setClickingTogglesState (true);
@@ -153,23 +211,32 @@ HeaderToolbar::HeaderToolbar (AdvancedEQProcessor& p)
     abToggleButton.setComponentID ("header.abToggle");
     copyABButton.setComponentID ("header.copyAB");
     phaseInvertButton.setComponentID ("header.phaseInvert");
-    analogButton.setComponentID ("header.analog");
+    characterSelector.setComponentID ("header.character");
     analyzerButton.setComponentID ("header.analyzer");
     freezeButton.setComponentID ("header.freeze");
     matchButton.setComponentID ("header.match");
+    sketchButton.setComponentID ("header.sketch");
+    browseButton.setComponentID ("header.browse");
+    midiPCButton.setComponentID ("header.midiPC");
+    fullscreenButton.setComponentID ("header.fullscreen");
     helpButton.setComponentID ("header.help");
     processModeSelector.setComponentID ("header.processMode");
+    lpQualitySelector.setComponentID ("header.lpQuality");
     outputGainSlider.setComponentID ("header.outputGain");
+    outputWidthSlider.setComponentID ("header.outputWidth");
 }
 
 HeaderToolbar::~HeaderToolbar()
 {
     presetManager.removeListener (this);
     phaseInvertAttachment.reset();
-    analogAttachment.reset();
+    characterAttachment.reset();
     analyzerAttachment.reset();
     processModeAttachment.reset();
+    lpQualityAttachment.reset();
     outputGainAttachment.reset();
+    outputWidthAttachment.reset();
+    midiPCAttachment.reset();
 }
 
 void HeaderToolbar::paint (juce::Graphics& g)
@@ -207,52 +274,82 @@ void HeaderToolbar::resized()
     // Right side controls (laid out right-to-left)
     auto rightBounds = bounds;
 
-    // Output gain knob + label (rightmost)
-    auto outArea = rightBounds.removeFromRight (50);
+    // Output gain knob + width knob (rightmost)
+    auto widthArea = rightBounds.removeFromRight (40);
+    auto widthKnob = widthArea.removeFromTop (widthArea.getHeight() - 2);
+    outputWidthSlider.setBounds (widthKnob.withSizeKeepingCentre (28, 28));
+    outputWidthLabel.setBounds (widthArea);
+
+    auto outArea = rightBounds.removeFromRight (40);
     auto outKnob = outArea.removeFromTop (outArea.getHeight() - 2);
     outputGainSlider.setBounds (outKnob.withSizeKeepingCentre (28, 28));
     outputGainLabel.setBounds (outArea);
 
-    rightBounds.removeFromRight (6);
+    rightBounds.removeFromRight (4);
 
-    // Process mode selector
-    auto modeArea = rightBounds.removeFromRight (110);
+    // Fullscreen button
+    auto fsArea = rightBounds.removeFromRight (22);
+    fullscreenButton.setBounds (fsArea.withHeight (22).withCentre (fsArea.getCentre()));
+
+    rightBounds.removeFromRight (2);
+
+    // Process mode selector + LP quality
+    auto modeArea = rightBounds.removeFromRight (100);
     processModeSelector.setBounds (modeArea.withHeight (22).withCentre (modeArea.getCentre()));
 
-    rightBounds.removeFromRight (4);
+    auto lpArea = rightBounds.removeFromRight (60);
+    lpQualitySelector.setBounds (lpArea.withHeight (22).withCentre (lpArea.getCentre()));
 
-    // Help button (?)
-    auto helpArea = rightBounds.removeFromRight (26);
+    rightBounds.removeFromRight (2);
+
+    // Help button
+    auto helpArea = rightBounds.removeFromRight (22);
     helpButton.setBounds (helpArea.withHeight (22).withCentre (helpArea.getCentre()));
 
-    rightBounds.removeFromRight (4);
+    rightBounds.removeFromRight (2);
+
+    // Browse button
+    auto browseArea = rightBounds.removeFromRight (44);
+    browseButton.setBounds (browseArea.withHeight (22).withCentre (browseArea.getCentre()));
+
+    rightBounds.removeFromRight (2);
 
     // Match button
-    auto matchArea = rightBounds.removeFromRight (42);
+    auto matchArea = rightBounds.removeFromRight (38);
     matchButton.setBounds (matchArea.withHeight (22).withCentre (matchArea.getCentre()));
 
-    rightBounds.removeFromRight (4);
+    // Sketch button
+    auto sketchArea = rightBounds.removeFromRight (44);
+    sketchButton.setBounds (sketchArea.withHeight (22).withCentre (sketchArea.getCentre()));
+
+    rightBounds.removeFromRight (2);
 
     // Freeze button
-    auto freezeArea = rightBounds.removeFromRight (48);
+    auto freezeArea = rightBounds.removeFromRight (44);
     freezeButton.setBounds (freezeArea.withHeight (22).withCentre (freezeArea.getCentre()));
 
-    rightBounds.removeFromRight (4);
+    rightBounds.removeFromRight (2);
 
-    // Analyzer on/off button
-    auto analyzerArea = rightBounds.removeFromRight (62);
+    // Analyzer on/off
+    auto analyzerArea = rightBounds.removeFromRight (56);
     analyzerButton.setBounds (analyzerArea.withHeight (22).withCentre (analyzerArea.getCentre()));
 
-    rightBounds.removeFromRight (4);
+    rightBounds.removeFromRight (2);
 
-    // Analog mode button
-    auto analogArea = rightBounds.removeFromRight (52);
-    analogButton.setBounds (analogArea.withHeight (22).withCentre (analogArea.getCentre()));
+    // Character mode selector (replaces Analog)
+    auto charArea = rightBounds.removeFromRight (60);
+    characterSelector.setBounds (charArea.withHeight (22).withCentre (charArea.getCentre()));
 
-    rightBounds.removeFromRight (4);
+    rightBounds.removeFromRight (2);
+
+    // MIDI PC toggle
+    auto midiArea = rightBounds.removeFromRight (48);
+    midiPCButton.setBounds (midiArea.withHeight (22).withCentre (midiArea.getCentre()));
+
+    rightBounds.removeFromRight (2);
 
     // Phase invert button
-    auto phaseArea = rightBounds.removeFromRight (28);
+    auto phaseArea = rightBounds.removeFromRight (26);
     phaseInvertButton.setBounds (phaseArea.withHeight (22).withCentre (phaseArea.getCentre()));
 
     // Undo/Redo buttons

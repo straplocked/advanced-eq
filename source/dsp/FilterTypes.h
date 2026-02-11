@@ -38,7 +38,8 @@ enum class FilterType
     Notch,          ///< Band-reject (notch) filter; deep null at the center frequency.
     BandPass,       ///< Band-pass filter; passes a narrow band around the center frequency.
     TiltShelf,      ///< Tilt shelf: simultaneous low-shelf cut and high-shelf boost (or vice versa) pivoted at the center frequency.
-    FlatTilt        ///< Flat tilt: gentle broadband spectral tilt across the full spectrum.
+    FlatTilt,       ///< Flat tilt: gentle broadband spectral tilt across the full spectrum.
+    AllPass         ///< All-pass: flat magnitude response with frequency-dependent phase rotation.
 };
 
 /**

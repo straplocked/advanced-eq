@@ -9,6 +9,7 @@
 #include "FilterTypes.h"
 #include "EnvelopeFollower.h"
 #include "DynamicProcessor.h"
+#include "SpectralDynamicsProcessor.h"
 #include <juce_audio_basics/juce_audio_basics.h>
 #include <juce_dsp/juce_dsp.h>
 #include <array>
@@ -42,6 +43,8 @@ public:
     void reset();
     void updateParameters (const BandParameters& params);
     void setAnalogMode (bool enabled);
+    void setCharacterMode (int mode);
+    void setSpectralDynamics (bool enabled, float threshold, float range, float ratio);
 
     void process (juce::AudioBuffer<float>& buffer, int numSamples);
     void processSingleChannel (float* channelData, int numSamples);
@@ -63,7 +66,7 @@ public:
         return dynamicGainReduction.load (std::memory_order_relaxed);
     }
 
-    static constexpr int kMaxChannels = 12; // 7.1.4 Atmos = 12 channels
+    static constexpr int kMaxChannels = 16; // 9.1.6 Atmos = 16 channels
 
 private:
     std::array<CascadedFilter, kMaxChannels> filters;
@@ -84,6 +87,7 @@ private:
     double sampleRate = 44100.0;
     bool needsUpdate = true;
     bool analogMode = false;
+    int characterMode = 0; // 0=Clean, 1=Gentle, 2=Warm
 
     // Dynamic EQ (only L/R used for stereo; index 0/1 for surround)
     std::array<EnvelopeFollower, kMaxChannels> envFollowers;
@@ -96,4 +100,11 @@ private:
     std::atomic<float> dynamicGainReduction { 0.0f };
 
     static float saturate (float x);
+
+    // Spectral dynamics
+    bool spectralEnabled = false;
+    float spectralThreshold = -20.0f;
+    float spectralRange = -12.0f;
+    float spectralRatio = 4.0f;
+    std::array<SpectralDynamicsProcessor, kMaxChannels> spectralProcs;
 };
