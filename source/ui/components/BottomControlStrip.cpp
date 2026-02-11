@@ -97,6 +97,19 @@ BottomControlStrip::BottomControlStrip (AdvancedEQProcessor& p)
     addChildComponent (dynAttackLabel);
     addChildComponent (dynReleaseLabel);
 
+    // Component IDs for help system
+    typeSelector.setComponentID ("bottom.typeSelector");
+    slopeSelector.setComponentID ("bottom.slopeSelector");
+    stereoSelector.setComponentID ("bottom.stereoSelector");
+    freqSlider.setComponentID ("bottom.freqKnob");
+    gainSlider.setComponentID ("bottom.gainKnob");
+    qSlider.setComponentID ("bottom.qKnob");
+    dynEnableButton.setComponentID ("bottom.dynEnable");
+    dynThreshSlider.setComponentID ("bottom.dynThreshKnob");
+    dynRangeSlider.setComponentID ("bottom.dynRangeKnob");
+    dynAttackSlider.setComponentID ("bottom.dynAttackKnob");
+    dynReleaseSlider.setComponentID ("bottom.dynReleaseKnob");
+
     startTimerHz (10);
 }
 

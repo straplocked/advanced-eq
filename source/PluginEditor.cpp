@@ -47,6 +47,13 @@ AdvancedEQEditor::AdvancedEQEditor (AdvancedEQProcessor& p)
     // Match panel (initially hidden, overlaid on curve display)
     addChildComponent (matchPanel);
 
+    // Help overlay (topmost child, transparent to mouse clicks)
+    addAndMakeVisible (helpOverlay);
+    headerToolbar.onHelpToggled = [this] (bool active)
+    {
+        helpOverlay.setHelpModeActive (active);
+    };
+
     // Register keyboard listener for undo/redo
     addKeyListener (this);
 
@@ -85,6 +92,10 @@ void AdvancedEQEditor::resized()
     matchPanel.setBounds (curveBounds.getCentreX() - panelW / 2,
                           curveBounds.getCentreY() - panelH / 2,
                           panelW, panelH);
+
+    // Help overlay covers entire editor, always on top
+    helpOverlay.setBounds (getLocalBounds());
+    helpOverlay.toFront (false);
 }
 
 bool AdvancedEQEditor::keyPressed (const juce::KeyPress& key, juce::Component*)

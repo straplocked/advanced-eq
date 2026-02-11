@@ -32,6 +32,7 @@ public:
 
     std::function<void (bool)> onFreezeToggled;
     std::function<void()> onMatchClicked;
+    std::function<void (bool)> onHelpToggled;
 
 private:
     AdvancedEQProcessor& processor;
@@ -55,6 +56,7 @@ private:
     juce::TextButton analyzerButton { "Analyzer" };
     juce::TextButton freezeButton { "Freeze" };
     juce::TextButton matchButton { "Match" };
+    juce::TextButton helpButton { "?" };
     juce::ComboBox processModeSelector;
     juce::Slider outputGainSlider;
     juce::Label outputGainLabel;

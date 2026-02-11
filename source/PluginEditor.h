@@ -11,6 +11,7 @@
 #include "ui/components/HeaderToolbar.h"
 #include "ui/components/LevelMeter.h"
 #include "ui/components/EQMatchPanel.h"
+#include "ui/help/HelpOverlay.h"
 #include "ui/LookAndFeel/AdvancedEqLookAndFeel.h"
 #include <juce_gui_extra/juce_gui_extra.h>
 #include <juce_opengl/juce_opengl.h>
@@ -42,6 +43,7 @@ private:
     BottomControlStrip controlStrip;
     LevelMeter levelMeter;
     EQMatchPanel matchPanel;
+    HelpOverlay helpOverlay;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AdvancedEQEditor)
 };

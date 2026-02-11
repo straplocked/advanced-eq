@@ -27,6 +27,8 @@ EqCurveDisplay::EqCurveDisplay (AdvancedEQProcessor& p)
     spectrumAnalyzerPost.prepare (Constants::kCurveResolution);
     previewFilter.prepare (44100.0);
 
+    setComponentID ("curve.display");
+
     startTimerHz (Constants::kUITimerHz);
 }
 

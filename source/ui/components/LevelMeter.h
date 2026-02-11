@@ -16,6 +16,7 @@ public:
     explicit LevelMeter (AdvancedEQProcessor& p)
         : processor (p)
     {
+        setComponentID ("levelMeter");
         startTimerHz (30);
     }
 

@@ -114,6 +114,17 @@ HeaderToolbar::HeaderToolbar (AdvancedEQProcessor& p)
     };
     addAndMakeVisible (matchButton);
 
+    // Help mode toggle
+    helpButton.setClickingTogglesState (true);
+    helpButton.setColour (juce::TextButton::buttonOnColourId,
+                          ColourPalette::compositeCurve().withAlpha (0.3f));
+    helpButton.onClick = [this]
+    {
+        if (onHelpToggled)
+            onHelpToggled (helpButton.getToggleState());
+    };
+    addAndMakeVisible (helpButton);
+
     processModeSelector.addItemList (ParamIDs::getProcessingModeNames(), 1);
     processModeSelector.setJustificationType (juce::Justification::centred);
     addAndMakeVisible (processModeSelector);
@@ -131,6 +142,24 @@ HeaderToolbar::HeaderToolbar (AdvancedEQProcessor& p)
     outputGainLabel.setFont (10.0f);
     outputGainLabel.setColour (juce::Label::textColourId, ColourPalette::axisText());
     addAndMakeVisible (outputGainLabel);
+
+    // Component IDs for help system
+    prevButton.setComponentID ("header.prevPreset");
+    nextButton.setComponentID ("header.nextPreset");
+    presetNameButton.setComponentID ("header.presetName");
+    saveButton.setComponentID ("header.savePreset");
+    undoButton.setComponentID ("header.undo");
+    redoButton.setComponentID ("header.redo");
+    abToggleButton.setComponentID ("header.abToggle");
+    copyABButton.setComponentID ("header.copyAB");
+    phaseInvertButton.setComponentID ("header.phaseInvert");
+    analogButton.setComponentID ("header.analog");
+    analyzerButton.setComponentID ("header.analyzer");
+    freezeButton.setComponentID ("header.freeze");
+    matchButton.setComponentID ("header.match");
+    helpButton.setComponentID ("header.help");
+    processModeSelector.setComponentID ("header.processMode");
+    outputGainSlider.setComponentID ("header.outputGain");
 }
 
 HeaderToolbar::~HeaderToolbar()
@@ -190,7 +219,13 @@ void HeaderToolbar::resized()
     auto modeArea = rightBounds.removeFromRight (110);
     processModeSelector.setBounds (modeArea.withHeight (22).withCentre (modeArea.getCentre()));
 
-    rightBounds.removeFromRight (6);
+    rightBounds.removeFromRight (4);
+
+    // Help button (?)
+    auto helpArea = rightBounds.removeFromRight (26);
+    helpButton.setBounds (helpArea.withHeight (22).withCentre (helpArea.getCentre()));
+
+    rightBounds.removeFromRight (4);
 
     // Match button
     auto matchArea = rightBounds.removeFromRight (42);

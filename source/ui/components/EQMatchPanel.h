@@ -60,6 +60,13 @@ public:
         statusLabel.setFont (11.0f);
         statusLabel.setJustificationType (juce::Justification::centred);
         addAndMakeVisible (statusLabel);
+
+        // Component IDs for help system
+        captureRefButton.setComponentID ("match.captureRef");
+        captureCurButton.setComponentID ("match.captureCur");
+        matchButton.setComponentID ("match.compute");
+        applyButton.setComponentID ("match.apply");
+        closeButton.setComponentID ("match.close");
     }
 
     void paint (juce::Graphics& g) override
