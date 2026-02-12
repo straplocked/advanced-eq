@@ -19,14 +19,13 @@ public:
     void paint (juce::Graphics& g) override;
     void timerCallback() override;
 
-    void setHelpModeActive (bool active);
-    bool isHelpModeActive() const { return helpModeActive; }
-
 private:
-    bool helpModeActive = false;
     juce::String currentHelpText;
     juce::Rectangle<int> currentTargetBounds;
     juce::String lastHoveredID;
+    int hoverTicks = 0;
+    static constexpr int kHoverDelayTicks = 20; // ~1.3 seconds at 15 Hz
+    bool showingTooltip = false;
 
     void drawHelpTooltip (juce::Graphics& g, const juce::String& text,
                           juce::Rectangle<int> targetBounds);

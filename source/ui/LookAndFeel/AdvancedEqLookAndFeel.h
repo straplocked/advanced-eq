@@ -263,4 +263,162 @@ public:
                          box.getHeight() - 2);
         label.setFont (getComboBoxFont (box));
     }
+
+    /** @brief Draws button text, rendering path-based icons for Unicode symbols
+     *         that Space Grotesk doesn't contain. */
+    void drawButtonText (juce::Graphics& g, juce::TextButton& button,
+                         bool, bool) override
+    {
+        auto text = button.getButtonText();
+        auto bounds = button.getLocalBounds().toFloat();
+        float alpha = button.isEnabled() ? 1.0f : 0.5f;
+
+        auto colour = button.findColour (button.getToggleState()
+            ? juce::TextButton::textColourOnId
+            : juce::TextButton::textColourOffId).withMultipliedAlpha (alpha);
+        g.setColour (colour);
+
+        if (text.length() == 1)
+        {
+            float iconSize = juce::jmin (bounds.getWidth(), bounds.getHeight()) * 0.4f;
+            float cx = bounds.getCentreX();
+            float cy = bounds.getCentreY();
+
+            switch (static_cast<int> (text[0]))
+            {
+                case 0x25C0: drawIconTriangle (g, cx, cy, iconSize, true); return;
+                case 0x25B6: drawIconTriangle (g, cx, cy, iconSize, false); return;
+                case 0x2913: drawIconSave (g, cx, cy, iconSize); return;
+                case 0x21A9: drawIconUndo (g, cx, cy, iconSize); return;
+                case 0x21AA: drawIconRedo (g, cx, cy, iconSize); return;
+                case 0x2922: drawIconFullscreen (g, cx, cy, iconSize); return;
+                case 0x2744: drawIconSnowflake (g, cx, cy, iconSize); return;
+                case 0x270E: drawIconPencil (g, cx, cy, iconSize); return;
+                default: break;
+            }
+        }
+
+        // Default: render text with body font
+        g.setFont (Fonts::getBody (bounds.getHeight() * 0.55f));
+        g.drawText (text, bounds, juce::Justification::centred, false);
+    }
+
+private:
+    static void drawIconTriangle (juce::Graphics& g, float cx, float cy, float s, bool left)
+    {
+        juce::Path p;
+        float hw = s * 0.35f;
+        float hh = s * 0.45f;
+        if (left)
+            p.addTriangle (cx + hw, cy - hh, cx + hw, cy + hh, cx - hh, cy);
+        else
+            p.addTriangle (cx - hw, cy - hh, cx - hw, cy + hh, cx + hh, cy);
+        g.fillPath (p);
+    }
+
+    static void drawIconSave (juce::Graphics& g, float cx, float cy, float s)
+    {
+        float stemW = s * 0.15f;
+        // Down-arrow stem
+        g.fillRect (cx - stemW, cy - s * 0.45f, stemW * 2.0f, s * 0.5f);
+        // Arrowhead
+        juce::Path p;
+        p.addTriangle (cx - s * 0.4f, cy + s * 0.05f,
+                       cx + s * 0.4f, cy + s * 0.05f,
+                       cx, cy + s * 0.45f);
+        g.fillPath (p);
+        // Tray base line
+        g.drawLine (cx - s * 0.5f, cy + s * 0.6f,
+                    cx + s * 0.5f, cy + s * 0.6f, 1.5f);
+    }
+
+    static void drawIconUndo (juce::Graphics& g, float cx, float cy, float s)
+    {
+        juce::Path curve;
+        curve.startNewSubPath (cx + s * 0.4f, cy + s * 0.15f);
+        curve.cubicTo (cx + s * 0.4f, cy - s * 0.5f,
+                       cx - s * 0.4f, cy - s * 0.5f,
+                       cx - s * 0.4f, cy + s * 0.15f);
+        g.strokePath (curve, juce::PathStrokeType (1.5f));
+        juce::Path ah;
+        ah.addTriangle (cx - s * 0.4f, cy + s * 0.4f,
+                        cx - s * 0.15f, cy,
+                        cx - s * 0.65f, cy);
+        g.fillPath (ah);
+    }
+
+    static void drawIconRedo (juce::Graphics& g, float cx, float cy, float s)
+    {
+        juce::Path curve;
+        curve.startNewSubPath (cx - s * 0.4f, cy + s * 0.15f);
+        curve.cubicTo (cx - s * 0.4f, cy - s * 0.5f,
+                       cx + s * 0.4f, cy - s * 0.5f,
+                       cx + s * 0.4f, cy + s * 0.15f);
+        g.strokePath (curve, juce::PathStrokeType (1.5f));
+        juce::Path ah;
+        ah.addTriangle (cx + s * 0.4f, cy + s * 0.4f,
+                        cx + s * 0.15f, cy,
+                        cx + s * 0.65f, cy);
+        g.fillPath (ah);
+    }
+
+    static void drawIconFullscreen (juce::Graphics& g, float cx, float cy, float s)
+    {
+        float d = s * 0.45f;
+        float l = s * 0.3f;
+        float w = 1.5f;
+        g.drawLine (cx - d, cy - d, cx - d + l, cy - d, w);
+        g.drawLine (cx - d, cy - d, cx - d, cy - d + l, w);
+        g.drawLine (cx + d, cy - d, cx + d - l, cy - d, w);
+        g.drawLine (cx + d, cy - d, cx + d, cy - d + l, w);
+        g.drawLine (cx - d, cy + d, cx - d + l, cy + d, w);
+        g.drawLine (cx - d, cy + d, cx - d, cy + d - l, w);
+        g.drawLine (cx + d, cy + d, cx + d - l, cy + d, w);
+        g.drawLine (cx + d, cy + d, cx + d, cy + d - l, w);
+    }
+
+    static void drawIconSnowflake (juce::Graphics& g, float cx, float cy, float s)
+    {
+        float r = s * 0.5f;
+        float w = 1.5f;
+        for (int i = 0; i < 3; ++i)
+        {
+            float angle = (float) i * juce::MathConstants<float>::pi / 3.0f;
+            float dx = r * std::cos (angle);
+            float dy = r * std::sin (angle);
+            g.drawLine (cx - dx, cy - dy, cx + dx, cy + dy, w);
+            float br = r * 0.25f;
+            for (int sign : { -1, 1 })
+            {
+                float bx = cx + (float) sign * dx * 0.6f;
+                float by = cy + (float) sign * dy * 0.6f;
+                float ba1 = angle + juce::MathConstants<float>::pi * 0.25f;
+                float ba2 = angle - juce::MathConstants<float>::pi * 0.25f;
+                g.drawLine (bx, by,
+                            bx + br * std::cos (ba1) * (float) sign,
+                            by + br * std::sin (ba1) * (float) sign, 1.0f);
+                g.drawLine (bx, by,
+                            bx + br * std::cos (ba2) * (float) sign,
+                            by + br * std::sin (ba2) * (float) sign, 1.0f);
+            }
+        }
+    }
+
+    static void drawIconPencil (juce::Graphics& g, float cx, float cy, float s)
+    {
+        float hs = s * 0.5f;
+        // Pencil body
+        g.drawLine (cx - hs * 0.7f, cy + hs * 0.7f,
+                    cx + hs * 0.5f, cy - hs * 0.5f, 2.5f);
+        // Pencil tip
+        juce::Path tip;
+        tip.startNewSubPath (cx - hs * 0.9f, cy + hs * 0.9f);
+        tip.lineTo (cx - hs * 0.55f, cy + hs * 0.65f);
+        tip.lineTo (cx - hs * 0.65f, cy + hs * 0.55f);
+        tip.closeSubPath();
+        g.fillPath (tip);
+        // Eraser end
+        g.drawLine (cx + hs * 0.5f, cy - hs * 0.5f,
+                    cx + hs * 0.7f, cy - hs * 0.7f, 3.5f);
+    }
 };

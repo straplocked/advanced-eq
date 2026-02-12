@@ -309,10 +309,10 @@ void EqCurveDisplay::paint (juce::Graphics& g)
         drawSketchPath (g);
     drawCompositeCurve (g);
     drawBandHandles (g);
+    drawTooltip (g);
     drawFrequencyLabels (g);
     drawGainLabels (g);
     drawRangeButtons (g);
-    drawTooltip (g);
 }
 
 void EqCurveDisplay::drawGrid (juce::Graphics& g)

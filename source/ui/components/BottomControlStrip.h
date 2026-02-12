@@ -29,7 +29,6 @@ public:
     // Global tool callbacks (moved from HeaderToolbar)
     std::function<void (bool)> onFreezeToggled;
     std::function<void()> onMatchClicked;
-    std::function<void (bool)> onHelpToggled;
     std::function<void (bool)> onSketchToggled;
 
 private:
@@ -78,7 +77,6 @@ private:
     juce::TextButton matchButton { "Match" };
     juce::TextButton sketchButton { juce::String::charToString (0x270E) }; // ✎
     juce::TextButton midiPCButton { "MIDI PC" };
-    juce::TextButton helpButton { "?" };
     juce::ComboBox processModeSelector;
     juce::ComboBox lpQualitySelector;
 

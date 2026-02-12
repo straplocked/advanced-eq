@@ -200,16 +200,6 @@ BottomControlStrip::BottomControlStrip (AdvancedEQProcessor& p)
     midiPCAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (
         apvts, ParamIDs::kMidiProgramChange, midiPCButton);
 
-    // Help mode toggle
-    helpButton.setClickingTogglesState (true);
-    helpButton.setColour (juce::TextButton::buttonOnColourId, ColourPalette::compositeCurve().withAlpha (0.3f));
-    helpButton.onClick = [this]
-    {
-        if (onHelpToggled)
-            onHelpToggled (helpButton.getToggleState());
-    };
-    addAndMakeVisible (helpButton);
-
     // Process mode selector
     processModeSelector.addItemList (ParamIDs::getProcessingModeNames(), 1);
     processModeSelector.setJustificationType (juce::Justification::centred);
@@ -232,34 +222,8 @@ BottomControlStrip::BottomControlStrip (AdvancedEQProcessor& p)
     matchButton.setComponentID ("bottom.match");
     sketchButton.setComponentID ("bottom.sketch");
     midiPCButton.setComponentID ("bottom.midiPC");
-    helpButton.setComponentID ("bottom.help");
     processModeSelector.setComponentID ("bottom.processMode");
     lpQualitySelector.setComponentID ("bottom.lpQuality");
-
-    // Tooltips (band controls)
-    typeSelector.setTooltip ("Filter type");
-    slopeSelector.setTooltip ("Filter slope / order");
-    stereoSelector.setTooltip ("Stereo placement");
-    freqSlider.setTooltip ("Center frequency");
-    gainSlider.setTooltip ("Band gain");
-    qSlider.setTooltip ("Q factor / bandwidth");
-    dynEnableButton.setTooltip ("Enable dynamic EQ for this band");
-    dynThreshSlider.setTooltip ("Dynamic EQ threshold");
-    dynRangeSlider.setTooltip ("Dynamic EQ range");
-    dynAttackSlider.setTooltip ("Dynamic EQ attack time");
-    dynReleaseSlider.setTooltip ("Dynamic EQ release time");
-
-    // Tooltips (global toolbar)
-    phaseInvertButton.setTooltip ("Invert output phase");
-    characterSelector.setTooltip ("EQ character mode");
-    analyzerButton.setTooltip ("Toggle spectrum analyzer");
-    freezeButton.setTooltip ("Freeze spectrum display");
-    matchButton.setTooltip ("EQ match");
-    sketchButton.setTooltip ("Sketch mode");
-    midiPCButton.setTooltip ("MIDI program change");
-    helpButton.setTooltip ("Show control descriptions");
-    processModeSelector.setTooltip ("Processing mode");
-    lpQualitySelector.setTooltip ("Linear phase quality");
 
     startTimerHz (10);
 }
@@ -522,7 +486,7 @@ void BottomControlStrip::resized()
     // Centre the toolbar controls within the full-width row
     int totalToolW = 100 + 2 + 70 + 2 + 85 + 2 + 26  // selectors + phase
                    + 12                                   // gap
-                   + 56 + 2 + 26 + 2 + 38 + 2 + 26 + 2 + 48 + 2 + 22; // buttons
+                   + 56 + 2 + 26 + 2 + 38 + 2 + 26 + 2 + 48; // buttons
     auto tb = toolbarRow.withSizeKeepingCentre (juce::jmin (totalToolW, toolbarRow.getWidth()),
                                                  toolbarRow.getHeight());
 
@@ -556,9 +520,6 @@ void BottomControlStrip::resized()
     tb.removeFromLeft (2);
     auto midiArea = tb.removeFromLeft (48);
     midiPCButton.setBounds (midiArea.withHeight (22).withCentre (midiArea.getCentre()));
-    tb.removeFromLeft (2);
-    auto helpArea = tb.removeFromLeft (22);
-    helpButton.setBounds (helpArea.withHeight (22).withCentre (helpArea.getCentre()));
 
     // --- Top row: band controls (centred) ---
     int knobSize = 50;

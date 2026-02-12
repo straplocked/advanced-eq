@@ -73,12 +73,8 @@ AdvancedEQEditor::AdvancedEQEditor (AdvancedEQProcessor& p)
     // Instance list panel (initially hidden)
     addChildComponent (instanceList);
 
-    // Help overlay (topmost child, transparent to mouse clicks)
+    // Help overlay (topmost child, transparent to mouse clicks — shows on hover)
     addAndMakeVisible (helpOverlay);
-    controlStrip.onHelpToggled = [this] (bool active)
-    {
-        helpOverlay.setHelpModeActive (active);
-    };
 
     // Register keyboard listener for undo/redo
     addKeyListener (this);

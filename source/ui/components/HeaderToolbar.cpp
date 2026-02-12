@@ -126,18 +126,6 @@ HeaderToolbar::HeaderToolbar (AdvancedEQProcessor& p)
     outputGainSlider.setComponentID ("header.outputGain");
     outputWidthSlider.setComponentID ("header.outputWidth");
 
-    // Tooltips
-    prevButton.setTooltip ("Previous preset");
-    nextButton.setTooltip ("Next preset");
-    presetNameButton.setTooltip ("Browse presets");
-    saveButton.setTooltip ("Save preset");
-    undoButton.setTooltip ("Undo (Cmd+Z)");
-    redoButton.setTooltip ("Redo (Cmd+Shift+Z)");
-    abToggleButton.setTooltip ("Toggle A/B comparison");
-    copyABButton.setTooltip ("Copy settings to other slot");
-    fullscreenButton.setTooltip ("Toggle fullscreen (F11)");
-    outputGainSlider.setTooltip ("Output gain");
-    outputWidthSlider.setTooltip ("Output stereo width");
 }
 
 HeaderToolbar::~HeaderToolbar()

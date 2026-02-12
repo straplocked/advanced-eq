@@ -10,30 +10,11 @@
 HelpOverlay::HelpOverlay()
 {
     setInterceptsMouseClicks (false, false);
-}
-
-void HelpOverlay::setHelpModeActive (bool active)
-{
-    helpModeActive = active;
-
-    if (active)
-    {
-        startTimerHz (15);
-    }
-    else
-    {
-        stopTimer();
-        currentHelpText = {};
-        lastHoveredID = {};
-        repaint();
-    }
+    startTimerHz (15);
 }
 
 void HelpOverlay::timerCallback()
 {
-    if (! helpModeActive)
-        return;
-
     auto* parent = getParentComponent();
     if (parent == nullptr)
         return;
@@ -43,10 +24,12 @@ void HelpOverlay::timerCallback()
 
     if (! getLocalBounds().contains (localPos))
     {
-        if (lastHoveredID.isNotEmpty())
+        if (lastHoveredID.isNotEmpty() || showingTooltip)
         {
             lastHoveredID = {};
             currentHelpText = {};
+            hoverTicks = 0;
+            showingTooltip = false;
             repaint();
         }
         return;
@@ -62,26 +45,37 @@ void HelpOverlay::timerCallback()
 
     if (hoveredID != lastHoveredID)
     {
+        // Mouse moved to a different component — reset delay
         lastHoveredID = hoveredID;
+        hoverTicks = 0;
+        if (showingTooltip)
+        {
+            showingTooltip = false;
+            currentHelpText = {};
+            repaint();
+        }
+        return;
+    }
 
-        if (hoveredID.isNotEmpty())
+    if (hoveredID.isNotEmpty() && ! showingTooltip)
+    {
+        ++hoverTicks;
+        if (hoverTicks >= kHoverDelayTicks)
         {
             currentHelpText = HelpText::getHelpText (hoveredID);
             if (currentHelpText.isNotEmpty() && hoveredComp != nullptr)
+            {
                 currentTargetBounds = getLocalArea (hoveredComp, hoveredComp->getLocalBounds());
+                showingTooltip = true;
+                repaint();
+            }
         }
-        else
-        {
-            currentHelpText = {};
-        }
-
-        repaint();
     }
 }
 
 void HelpOverlay::paint (juce::Graphics& g)
 {
-    if (! helpModeActive || currentHelpText.isEmpty())
+    if (! showingTooltip || currentHelpText.isEmpty())
         return;
 
     drawHelpTooltip (g, currentHelpText, currentTargetBounds);
@@ -158,6 +152,10 @@ juce::Component* HelpOverlay::findDeepestComponentWithID (juce::Component* root,
     {
         auto* child = root->getChildComponent (i);
         if (child == this || ! child->isVisible())
+            continue;
+
+        // Skip the EQ curve display area entirely
+        if (child->getComponentID() == "curve.display")
             continue;
 
         auto localPos = child->getLocalPoint (root, pos);
