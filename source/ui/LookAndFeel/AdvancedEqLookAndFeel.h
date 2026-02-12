@@ -294,6 +294,7 @@ public:
                 case 0x2922: drawIconFullscreen (g, cx, cy, iconSize); return;
                 case 0x2744: drawIconSnowflake (g, cx, cy, iconSize); return;
                 case 0x270E: drawIconPencil (g, cx, cy, iconSize); return;
+                case 0x2665: drawIconHeart (g, cx, cy, iconSize); return;
                 default: break;
             }
         }
@@ -420,5 +421,24 @@ private:
         // Eraser end
         g.drawLine (cx + hs * 0.5f, cy - hs * 0.5f,
                     cx + hs * 0.7f, cy - hs * 0.7f, 3.5f);
+    }
+
+    static void drawIconHeart (juce::Graphics& g, float cx, float cy, float s)
+    {
+        g.fillPath (makeHeartPath (cx, cy, s));
+    }
+
+    static juce::Path makeHeartPath (float cx, float cy, float s)
+    {
+        juce::Path heart;
+        heart.startNewSubPath (cx, cy + s * 0.35f);
+        heart.cubicTo (cx - s * 0.7f, cy - s * 0.1f,
+                       cx - s * 0.4f, cy - s * 0.55f,
+                       cx, cy - s * 0.2f);
+        heart.cubicTo (cx + s * 0.4f, cy - s * 0.55f,
+                       cx + s * 0.7f, cy - s * 0.1f,
+                       cx, cy + s * 0.35f);
+        heart.closeSubPath();
+        return heart;
     }
 };

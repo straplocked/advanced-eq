@@ -237,8 +237,34 @@ void HeaderToolbar::updatePresetName()
 
 void HeaderToolbar::showSaveDialog()
 {
-    auto* nameEditor = new juce::AlertWindow ("Save Preset", "Enter a name for your preset:", juce::MessageBoxIconType::NoIcon);
+    auto* nameEditor = new juce::AlertWindow ("Save Preset", "Enter a name and category for your preset:", juce::MessageBoxIconType::NoIcon);
     nameEditor->addTextEditor ("name", presetManager.getCurrentPresetName(), "Preset name:");
+    nameEditor->addComboBox ("category", {}, "Category:");
+
+    // Populate the category combo box with existing categories + make it editable
+    if (auto* combo = nameEditor->getComboBoxComponent ("category"))
+    {
+        combo->setEditableText (true);
+        auto cats = presetManager.getCategories();
+        int id = 1;
+        for (auto& cat : cats)
+            combo->addItem (cat, id++);
+
+        // Default to "User" if it exists, otherwise first item
+        bool foundUser = false;
+        for (int i = 0; i < combo->getNumItems(); ++i)
+        {
+            if (combo->getItemText (i) == "User")
+            {
+                combo->setSelectedItemIndex (i);
+                foundUser = true;
+                break;
+            }
+        }
+        if (! foundUser && combo->getNumItems() > 0)
+            combo->setSelectedItemIndex (0);
+    }
+
     nameEditor->addButton ("Save", 1);
     nameEditor->addButton ("Cancel", 0);
 
@@ -248,7 +274,12 @@ void HeaderToolbar::showSaveDialog()
             if (result == 1)
             {
                 auto name = nameEditor->getTextEditorContents ("name");
-                presetManager.saveCurrentAsPreset (name);
+                juce::String category = "User";
+                if (auto* combo = nameEditor->getComboBoxComponent ("category"))
+                    category = combo->getText();
+                if (category.isEmpty())
+                    category = "User";
+                presetManager.saveCurrentAsPreset (name, category);
             }
             delete nameEditor;
         }), false);

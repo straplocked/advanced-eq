@@ -95,9 +95,25 @@ public:
      * Writes an XML file to the user presets directory and refreshes the preset list.
      *
      * @param name Display name for the new preset.
+     * @param category Category for the preset (defaults to "User").
      * @return True if saving succeeded; false on I/O error.
      */
-    bool saveCurrentAsPreset (const juce::String& name);
+    bool saveCurrentAsPreset (const juce::String& name, const juce::String& category = "User");
+
+    /**
+     * @brief Exports a preset to a JSON file for sharing.
+     * @param presetIndex Zero-based index into the allPresets vector.
+     * @param file Destination JSON file.
+     * @return True if export succeeded.
+     */
+    bool exportPresetToJSON (int presetIndex, const juce::File& file);
+
+    /**
+     * @brief Imports a preset from a JSON file and saves it as a user preset.
+     * @param file Source JSON file.
+     * @return True if import succeeded.
+     */
+    bool importPresetFromJSON (const juce::File& file);
 
     /**
      * @brief Deletes a user preset by index.

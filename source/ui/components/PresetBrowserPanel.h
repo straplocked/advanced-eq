@@ -48,6 +48,17 @@ public:
         listBox.setColour (juce::ListBox::backgroundColourId, ColourPalette::background());
         addAndMakeVisible (listBox);
 
+        // Import/Export buttons
+        importButton.setColour (juce::TextButton::buttonColourId, ColourPalette::background().brighter (0.1f));
+        importButton.setColour (juce::TextButton::textColourOffId, ColourPalette::textBright());
+        importButton.onClick = [this] { showImportDialog(); };
+        addAndMakeVisible (importButton);
+
+        exportButton.setColour (juce::TextButton::buttonColourId, ColourPalette::background().brighter (0.1f));
+        exportButton.setColour (juce::TextButton::textColourOffId, ColourPalette::textBright());
+        exportButton.onClick = [this] { showExportDialog(); };
+        addAndMakeVisible (exportButton);
+
         // Close button
         closeButton.onClick = [this] { setVisible (false); };
         addAndMakeVisible (closeButton);
@@ -84,6 +95,8 @@ public:
         topRow.removeFromLeft (4);
         favToggle.setBounds (topRow);
 
+        importButton.setBounds (getWidth() - 150, 6, 50, 22);
+        exportButton.setBounds (getWidth() - 94, 6, 50, 22);
         closeButton.setBounds (getWidth() - 30, 6, 22, 22);
 
         bounds.removeFromTop (6);
@@ -103,11 +116,25 @@ public:
         if (rowIsSelected)
             g.fillAll (ColourPalette::bandColour (0).withAlpha (0.25f));
 
-        // Favorite star
-        g.setColour (entry.isFavorite ? juce::Colours::gold : ColourPalette::textDim());
-        g.setFont (13.0f);
-        g.drawText (entry.isFavorite ? juce::String::charToString (0x2605) : juce::String::charToString (0x2606),
-                     4, 0, 20, height, juce::Justification::centredLeft);
+        // Favorite heart
+        {
+            float hx = 14.0f, hy = (float) height * 0.5f;
+            float hs = 10.0f;
+            juce::Path heart;
+            heart.startNewSubPath (hx, hy + hs * 0.35f);
+            heart.cubicTo (hx - hs * 0.7f, hy - hs * 0.1f,
+                           hx - hs * 0.4f, hy - hs * 0.55f,
+                           hx, hy - hs * 0.2f);
+            heart.cubicTo (hx + hs * 0.4f, hy - hs * 0.55f,
+                           hx + hs * 0.7f, hy - hs * 0.1f,
+                           hx, hy + hs * 0.35f);
+            heart.closeSubPath();
+            g.setColour (entry.isFavorite ? juce::Colour (0xffff4466) : ColourPalette::textDim());
+            if (entry.isFavorite)
+                g.fillPath (heart);
+            else
+                g.strokePath (heart, juce::PathStrokeType (1.0f));
+        }
 
         // Name
         g.setColour (ColourPalette::textBright());
@@ -243,15 +270,66 @@ private:
         listBox.repaint();
     }
 
+    void showImportDialog()
+    {
+        fileChooser = std::make_unique<juce::FileChooser> (
+            "Import Preset", juce::File(), "*.json");
+
+        fileChooser->launchAsync (juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles,
+            [this] (const juce::FileChooser& fc)
+            {
+                auto result = fc.getResult();
+                if (result == juce::File())
+                    return;
+                if (presetManager.importPresetFromJSON (result))
+                {
+                    // Refresh category filter
+                    categoryFilter.clear();
+                    categoryFilter.addItem ("All Categories", 1);
+                    auto cats = presetManager.getCategories();
+                    for (int i = 0; i < (int) cats.size(); ++i)
+                        categoryFilter.addItem (cats[(size_t) i], i + 2);
+                    categoryFilter.setSelectedId (1);
+                    rebuildFilteredList();
+                }
+            });
+    }
+
+    void showExportDialog()
+    {
+        int sel = listBox.getSelectedRow();
+        if (sel < 0 || sel >= (int) filteredEntries.size())
+            return;
+
+        auto& entry = filteredEntries[(size_t) sel];
+        auto suggestedName = juce::File::createLegalFileName (entry.name) + ".json";
+
+        fileChooser = std::make_unique<juce::FileChooser> (
+            "Export Preset", juce::File::getSpecialLocation (juce::File::userDesktopDirectory).getChildFile (suggestedName), "*.json");
+
+        auto presetIdx = entry.presetIndex;
+        fileChooser->launchAsync (juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::canSelectFiles,
+            [this, presetIdx] (const juce::FileChooser& fc)
+            {
+                auto result = fc.getResult();
+                if (result == juce::File())
+                    return;
+                presetManager.exportPresetToJSON (presetIdx, result);
+            });
+    }
+
     PresetManager& presetManager;
     PresetMetadataStore metadataStore;
     std::vector<PresetMetadataEntry> filteredEntries;
 
     juce::TextEditor searchBox;
     juce::ComboBox categoryFilter;
-    juce::TextButton favToggle { juce::String::charToString (0x2605) };
+    juce::TextButton favToggle { juce::String::charToString (0x2665) }; // ♥
+    juce::TextButton importButton { "Import" };
+    juce::TextButton exportButton { "Export" };
     juce::TextButton closeButton { "X" };
     juce::ListBox listBox;
+    std::unique_ptr<juce::FileChooser> fileChooser;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PresetBrowserPanel)
 };
