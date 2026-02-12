@@ -73,7 +73,7 @@ public:
 
         // Instance name
         g.setColour (ColourPalette::textBright());
-        g.setFont (10.0f);
+        g.setFont (11.0f);
         g.drawText (instanceName, bounds.reduced (4.0f, 2.0f).removeFromTop (12),
                      juce::Justification::centredLeft);
     }

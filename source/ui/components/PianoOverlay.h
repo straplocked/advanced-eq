@@ -40,7 +40,7 @@ public:
             // Draw note name
             juce::String noteName = "C" + juce::String (octave);
             g.setColour (ColourPalette::axisText().withAlpha (0.6f));
-            g.setFont (9.0f);
+            g.setFont (10.0f);
             g.drawText (noteName, (int) x - 10, (int) h - 14, 20, 12,
                         juce::Justification::centred, false);
         }

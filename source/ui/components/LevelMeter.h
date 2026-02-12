@@ -39,7 +39,7 @@ public:
 
         // Labels
         g.setColour (ColourPalette::axisText());
-        g.setFont (8.0f);
+        g.setFont (9.0f);
         g.drawText ("L", (int) barInset, (int) h - 10, (int) barWidth, 10,
                      juce::Justification::centred, false);
         g.drawText ("R", (int) (barInset + barWidth + 1.0f), (int) h - 10, (int) barWidth, 10,

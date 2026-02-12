@@ -12,7 +12,7 @@ BottomControlStrip::BottomControlStrip (AdvancedEQProcessor& p)
 {
     // Band label (colour dot + number)
     bandLabel.setJustificationType (juce::Justification::centred);
-    bandLabel.setFont (13.0f);
+    bandLabel.setFont (14.0f);
     bandLabel.setColour (juce::Label::textColourId, ColourPalette::textBright());
     addChildComponent (bandLabel);
 
@@ -54,7 +54,7 @@ BottomControlStrip::BottomControlStrip (AdvancedEQProcessor& p)
     auto setupLabel = [] (juce::Label& label)
     {
         label.setJustificationType (juce::Justification::centred);
-        label.setFont (10.0f);
+        label.setFont (11.0f);
         label.setColour (juce::Label::textColourId, ColourPalette::axisText());
     };
 
@@ -102,7 +102,7 @@ BottomControlStrip::BottomControlStrip (AdvancedEQProcessor& p)
     {
         label.setText (text, juce::dontSendNotification);
         label.setJustificationType (juce::Justification::centred);
-        label.setFont (9.0f);
+        label.setFont (10.0f);
         label.setColour (juce::Label::textColourId, ColourPalette::textDim());
     };
 
@@ -490,7 +490,7 @@ void BottomControlStrip::paint (juce::Graphics& g)
         // Show help text when no band selected (band controls zone only)
         auto bandZone = getLocalBounds().withBottom ((int) sepY);
         g.setColour (ColourPalette::textDim());
-        g.setFont (11.0f);
+        g.setFont (12.0f);
         g.drawText ("Click to add band  |  Drag to adjust  |  Scroll for Q  |  Double-click to remove",
                      bandZone, juce::Justification::centred, false);
     }

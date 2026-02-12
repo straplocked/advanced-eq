@@ -85,7 +85,7 @@ AdvancedEQEditor::AdvancedEQEditor (AdvancedEQProcessor& p)
 
     setSize (Constants::kDefaultEditorWidth, Constants::kDefaultEditorHeight);
     setResizable (true, true);
-    setResizeLimits (750, 450, 1920, 1080);
+    setResizeLimits (825, 495, 2112, 1188);
 }
 
 AdvancedEQEditor::~AdvancedEQEditor()
@@ -225,10 +225,10 @@ void AdvancedEQEditor::setWindowSizePreset (WindowSizePreset preset)
 {
     switch (preset)
     {
-        case Mini:   setSize (750, 450); break;
-        case Small:  setSize (850, 510); break;
-        case Medium: setSize (1000, 600); break;
-        case Large:  setSize (1200, 720); break;
-        case XL:     setSize (1500, 900); break;
+        case Mini:   setSize (825, 495); break;
+        case Small:  setSize (935, 561); break;
+        case Medium: setSize (1100, 660); break;
+        case Large:  setSize (1320, 792); break;
+        case XL:     setSize (1650, 990); break;
     }
 }

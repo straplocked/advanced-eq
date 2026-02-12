@@ -12,6 +12,7 @@
 #include "EqCurveDisplay.h"
 #include "../../parameters/ParameterIDs.h"
 #include "../../utils/FrequencyUtils.h"
+#include "../LookAndFeel/Fonts.h"
 
 EqCurveDisplay::EqCurveDisplay (AdvancedEQProcessor& p)
     : processor (p)
@@ -72,7 +73,7 @@ void EqCurveDisplay::drawRangeButtons (juce::Graphics& g)
     static const char* labels[] = { "3", "6", "12", "30" };
     static const DisplayRange ranges[] = { dB3, dB6, dB12, dB30 };
 
-    g.setFont (10.0f);
+    g.setFont (11.0f);
     for (int i = 0; i < 4; ++i)
     {
         auto rect = getRangeButtonRect (i);
@@ -375,7 +376,7 @@ void EqCurveDisplay::drawGrid (juce::Graphics& g)
 void EqCurveDisplay::drawFrequencyLabels (juce::Graphics& g)
 {
     g.setColour (ColourPalette::axisText());
-    g.setFont (11.0f);
+    g.setFont (12.0f);
 
     static const float labelFreqs[] = { 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000 };
     static const char* labels[] = { "20", "50", "100", "200", "500", "1k", "2k", "5k", "10k", "20k" };
@@ -392,7 +393,7 @@ void EqCurveDisplay::drawFrequencyLabels (juce::Graphics& g)
 void EqCurveDisplay::drawGainLabels (juce::Graphics& g)
 {
     g.setColour (ColourPalette::axisText());
-    g.setFont (10.0f);
+    g.setFont (11.0f);
 
     float step = getGridStep();
     for (float db = displayMinDB + step; db < displayMaxDB; db += step)
@@ -674,7 +675,7 @@ void EqCurveDisplay::drawBandHandles (juce::Graphics& g)
 
             if (label != nullptr)
             {
-                g.setFont (juce::Font (11.0f, juce::Font::bold));
+                g.setFont (Fonts::getBold (12.0f));
                 auto labelRect = juce::Rectangle<float> (x - 7.0f, y + radius + 2.0f, 14.0f, 13.0f);
 
                 // Dark background pill for contrast
@@ -791,7 +792,7 @@ void EqCurveDisplay::drawTooltip (juce::Graphics& g)
     g.drawRoundedRectangle (tooltipBounds, 4.0f, 0.5f);
 
     g.setColour (ColourPalette::textBright());
-    g.setFont (11.0f);
+    g.setFont (12.0f);
     g.drawText (text, tooltipBounds, juce::Justification::centred, false);
 }
 

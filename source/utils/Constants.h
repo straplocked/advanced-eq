@@ -70,9 +70,9 @@ namespace Constants
 
     // Editor
     /** @brief Default editor window width in pixels. */
-    constexpr int kDefaultEditorWidth = 1000;
+    constexpr int kDefaultEditorWidth = 1100;
     /** @brief Default editor window height in pixels. */
-    constexpr int kDefaultEditorHeight = 600;
+    constexpr int kDefaultEditorHeight = 660;
 
     // Analyzer
     /** @brief FFT order (2^12 = 4096 bins). */

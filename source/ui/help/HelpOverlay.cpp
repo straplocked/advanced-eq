@@ -5,6 +5,7 @@
  */
 
 #include "HelpOverlay.h"
+#include "../LookAndFeel/Fonts.h"
 
 HelpOverlay::HelpOverlay()
 {
@@ -93,11 +94,11 @@ void HelpOverlay::drawHelpTooltip (juce::Graphics& g, const juce::String& text,
     const float padding = 8.0f;
     const float vertPadding = 5.0f;
 
-    g.setFont (11.0f);
+    g.setFont (12.0f);
 
     // Measure text with wrapping
     juce::AttributedString attrText;
-    attrText.append (text, juce::Font (11.0f), ColourPalette::textBright());
+    attrText.append (text, Fonts::getBody (12.0f), ColourPalette::textBright());
     attrText.setJustification (juce::Justification::centredLeft);
 
     juce::TextLayout layout;

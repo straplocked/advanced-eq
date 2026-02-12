@@ -17,6 +17,7 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "ColourPalette.h"
+#include "Fonts.h"
 
 /**
  * @class AdvancedEqLookAndFeel
@@ -37,6 +38,8 @@ public:
     /** @brief Constructs the look-and-feel and sets default JUCE colour IDs from ColourPalette. */
     AdvancedEqLookAndFeel()
     {
+        setDefaultSansSerifTypeface (Fonts::getSpaceGroteskTypeface());
+
         setColour (juce::ResizableWindow::backgroundColourId, ColourPalette::background());
         setColour (juce::Slider::rotarySliderFillColourId, ColourPalette::knobForeground());
         setColour (juce::Slider::rotarySliderOutlineColourId, ColourPalette::knobBackground());
@@ -250,7 +253,7 @@ public:
 
     juce::Font getComboBoxFont (juce::ComboBox&) override
     {
-        return juce::Font (11.0f);
+        return Fonts::getBody (12.0f);
     }
 
     void positionComboBoxText (juce::ComboBox& box, juce::Label& label) override

@@ -70,6 +70,12 @@ if(HAS_CLAP)
     )
 endif()
 
+# --- Binary Data (fonts, icons) ---
+juce_add_binary_data(AdvancedEQBinaryData SOURCES
+    resources/fonts/SpaceGrotesk-Regular.ttf
+    resources/fonts/Audiowide-Regular.ttf
+)
+
 # --- Source Files ---
 file(GLOB_RECURSE SourceFiles CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/source/*.cpp"
@@ -81,6 +87,7 @@ target_include_directories(AdvancedEQ PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/sourc
 # --- JUCE Module Dependencies ---
 target_link_libraries(AdvancedEQ
     PRIVATE
+        AdvancedEQBinaryData
         juce::juce_audio_utils
         juce::juce_audio_processors
         juce::juce_dsp

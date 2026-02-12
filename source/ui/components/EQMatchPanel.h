@@ -57,7 +57,7 @@ public:
         addAndMakeVisible (closeButton);
 
         statusLabel.setColour (juce::Label::textColourId, ColourPalette::axisText());
-        statusLabel.setFont (11.0f);
+        statusLabel.setFont (12.0f);
         statusLabel.setJustificationType (juce::Justification::centred);
         addAndMakeVisible (statusLabel);
 
@@ -81,7 +81,7 @@ public:
         g.drawRoundedRectangle (bounds.reduced (0.5f), 6.0f, 1.0f);
 
         // Title
-        g.setFont (13.0f);
+        g.setFont (14.0f);
         g.setColour (ColourPalette::textBright());
         g.drawText ("EQ Match", bounds.removeFromTop (24).reduced (8, 0),
                      juce::Justification::centredLeft, false);

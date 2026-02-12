@@ -10,6 +10,7 @@
  */
 
 #include "HeaderToolbar.h"
+#include "../LookAndFeel/Fonts.h"
 
 HeaderToolbar::HeaderToolbar (AdvancedEQProcessor& p)
     : processor (p),
@@ -96,7 +97,7 @@ HeaderToolbar::HeaderToolbar (AdvancedEQProcessor& p)
 
     outputWidthLabel.setText ("Width", juce::dontSendNotification);
     outputWidthLabel.setJustificationType (juce::Justification::centred);
-    outputWidthLabel.setFont (10.0f);
+    outputWidthLabel.setFont (Fonts::getBody (11.0f));
     outputWidthLabel.setColour (juce::Label::textColourId, ColourPalette::axisText());
     addAndMakeVisible (outputWidthLabel);
 
@@ -108,7 +109,7 @@ HeaderToolbar::HeaderToolbar (AdvancedEQProcessor& p)
 
     outputGainLabel.setText ("Out", juce::dontSendNotification);
     outputGainLabel.setJustificationType (juce::Justification::centred);
-    outputGainLabel.setFont (10.0f);
+    outputGainLabel.setFont (Fonts::getBody (11.0f));
     outputGainLabel.setColour (juce::Label::textColourId, ColourPalette::axisText());
     addAndMakeVisible (outputGainLabel);
 
@@ -163,12 +164,12 @@ void HeaderToolbar::paint (juce::Graphics& g)
     g.setColour (ColourPalette::bevelDark());
     g.drawLine (0.0f, bottomY - 0.5f, bounds.getRight(), bottomY - 0.5f, 1.0f);
 
-    // Title with drop shadow
-    g.setFont (16.0f);
+    // Title with drop shadow (Audiowide branding font)
+    g.setFont (Fonts::getTitle (17.5f));
     g.setColour (juce::Colour (0x40000000));
-    g.drawText ("Advanced EQ", 13, 1, 120, getHeight(), juce::Justification::centredLeft, true);
+    g.drawText ("ADVANCED EQ", 13, 1, 155, getHeight(), juce::Justification::centredLeft, true);
     g.setColour (ColourPalette::textBright());
-    g.drawText ("Advanced EQ", 12, 0, 120, getHeight(), juce::Justification::centredLeft, true);
+    g.drawText ("ADVANCED EQ", 12, 0, 155, getHeight(), juce::Justification::centredLeft, true);
 }
 
 void HeaderToolbar::resized()
@@ -176,7 +177,7 @@ void HeaderToolbar::resized()
     auto bounds = getLocalBounds().reduced (8, 4);
 
     // --- Left side: title, undo/redo, A/B ---
-    bounds.removeFromLeft (124); // title "Advanced EQ"
+    bounds.removeFromLeft (160); // title "ADVANCED EQ" (Audiowide font)
 
     auto undoArea = bounds.removeFromLeft (36);
     undoButton.setBounds (undoArea.withHeight (22).withCentre (undoArea.getCentre()));

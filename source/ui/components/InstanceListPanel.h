@@ -47,13 +47,13 @@ public:
         g.drawRect (getLocalBounds(), 1);
 
         g.setColour (ColourPalette::textBright());
-        g.setFont (14.0f);
+        g.setFont (15.0f);
         g.drawText ("Active Instances", 10, 6, 200, 20, juce::Justification::centredLeft);
 
         if (activeCount == 0)
         {
             g.setColour (ColourPalette::textDim());
-            g.setFont (11.0f);
+            g.setFont (12.0f);
             g.drawText ("No other instances detected", getLocalBounds(),
                          juce::Justification::centred);
         }
