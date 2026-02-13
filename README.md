@@ -1,6 +1,11 @@
 # Advanced EQ
 
-> Open-source parametric equalizer plugin inspired by FabFilter Pro-Q 3
+[![License: GPL-3.0](https://img.shields.io/badge/License-GPL--3.0--or--later-blue.svg)](LICENSE)
+[![CI](https://github.com/straplocked/advanced-eq/actions/workflows/ci.yml/badge.svg)](https://github.com/straplocked/advanced-eq/actions/workflows/ci.yml)
+
+An open-source parametric equalizer audio plugin built with [JUCE 7](https://juce.com/). Features 24 bands, 9 filter types, 10 slope options, dynamic EQ, linear/natural/zero-latency phase modes, EQ matching, spectrum grab, surround/Atmos support, MIDI learn, and a real-time spectrum analyzer.
+
+![Advanced EQ](docs/images/plugin-screenshot.png)
 
 ## Features
 
@@ -209,8 +214,10 @@ advanced-eq/
 └── resources/                   # Fonts, icons, presets
 ```
 
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, code style, and contribution guidelines.
+
 ## License
 
-This project is licensed under the [GNU General Public License v3.0](https://www.gnu.org/licenses/gpl-3.0.html) or later.
-
-See [LICENSE](LICENSE) for the full text.
+This project is licensed under the [GNU General Public License v3.0 or later](LICENSE).

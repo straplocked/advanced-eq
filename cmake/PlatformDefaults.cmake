@@ -1,9 +1,6 @@
 # Platform-specific compiler flags and settings
-
-if(APPLE)
-    set(CMAKE_OSX_DEPLOYMENT_TARGET "10.13" CACHE STRING "Minimum macOS version")
-    set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64" CACHE STRING "Build universal binary")
-endif()
+# Note: CMAKE_OSX_DEPLOYMENT_TARGET and CMAKE_OSX_ARCHITECTURES are set in
+# CMakeLists.txt before project() so they propagate to all sub-builds.
 
 if(MSVC)
     add_compile_options(/W4 /permissive-)
