@@ -1,7 +1,7 @@
 # Advanced EQ
 
 [![License: GPL-3.0](https://img.shields.io/badge/License-GPL--3.0--or--later-blue.svg)](LICENSE)
-[![CI](https://github.com/straplocked/advanced-eq/actions/workflows/ci.yml/badge.svg)](https://github.com/straplocked/advanced-eq/actions/workflows/ci.yml)
+[![Build](https://github.com/straplocked/advanced-eq/actions/workflows/build.yml/badge.svg)](https://github.com/straplocked/advanced-eq/actions/workflows/build.yml)
 
 An open-source parametric equalizer audio plugin built with [JUCE 7](https://juce.com/). Features 24 bands, 9 filter types, 10 slope options, dynamic EQ, linear/natural/zero-latency phase modes, EQ matching, spectrum grab, surround/Atmos support, MIDI learn, and a real-time spectrum analyzer.
 
