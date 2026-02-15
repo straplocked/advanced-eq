@@ -61,6 +61,29 @@ An open-source parametric equalizer audio plugin built with [JUCE 7](https://juc
 
 *AAX requires the Avid AAX SDK (set `AAX_SDK_PATH` in CMake).
 
+## Installation
+
+Download the latest release for your platform from the [Releases page](https://github.com/straplocked/advanced-eq/releases).
+
+### macOS
+1. Download `AdvancedEQ-x.y.z-macOS.dmg`
+2. Open the DMG and drag plugin files to:
+   - **VST3** → `/Library/Audio/Plug-Ins/VST3/`
+   - **AU** → `/Library/Audio/Plug-Ins/Components/`
+   - **CLAP** → `/Library/Audio/Plug-Ins/CLAP/`
+3. On first launch, right-click → Open to bypass Gatekeeper (unsigned builds)
+4. Restart your DAW and rescan plugins
+
+### Windows
+1. Download `AdvancedEQ-x.y.z-Windows.exe`
+2. Run the installer — it places the VST3 plugin in the standard location
+3. Restart your DAW and rescan plugins
+
+### Linux
+1. Download `AdvancedEQ-x.y.z-Linux.tar.gz`
+2. Extract and run `./install.sh` (installs to `~/.vst3/` and `~/.local/bin/`)
+3. Restart your DAW and rescan plugins
+
 ## Building
 
 ### Requirements

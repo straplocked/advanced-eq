@@ -1,0 +1,217 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  # ── Validate version tag matches CMakeLists.txt ──
+  validate:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      changelog: ${{ steps.changelog.outputs.changelog }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          TAG="${GITHUB_REF#refs/tags/v}"
+          echo "version=$TAG" >> "$GITHUB_OUTPUT"
+          echo "Extracted version: $TAG"
+
+      - name: Validate version matches CMakeLists.txt
+        run: |
+          TAG_VERSION="${{ steps.version.outputs.version }}"
+          MAJOR=$(grep 'ADVANCED_EQ_VERSION_MAJOR' CMakeLists.txt | head -1 | grep -o '[0-9]\+')
+          MINOR=$(grep 'ADVANCED_EQ_VERSION_MINOR' CMakeLists.txt | head -1 | grep -o '[0-9]\+')
+          PATCH=$(grep 'ADVANCED_EQ_VERSION_PATCH' CMakeLists.txt | head -1 | grep -o '[0-9]\+')
+          CMAKE_VERSION="$MAJOR.$MINOR.$PATCH"
+          echo "Tag version: $TAG_VERSION"
+          echo "CMake version: $CMAKE_VERSION"
+          if [ "$TAG_VERSION" != "$CMAKE_VERSION" ]; then
+            echo "::error::Version mismatch! Tag is v$TAG_VERSION but CMakeLists.txt has $CMAKE_VERSION"
+            exit 1
+          fi
+
+      - name: Extract changelog
+        id: changelog
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          # Extract section between this version header and the next version header
+          CHANGELOG=$(awk "/^## \\[$VERSION\\]/{found=1; next} /^## \\[/{if(found) exit} found{print}" CHANGELOG.md)
+          if [ -z "$CHANGELOG" ]; then
+            CHANGELOG="No changelog entry found for version $VERSION."
+          fi
+          # Use GitHub Actions delimiter for multiline output
+          EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
+          echo "changelog<<$EOF" >> "$GITHUB_OUTPUT"
+          echo "$CHANGELOG" >> "$GITHUB_OUTPUT"
+          echo "$EOF" >> "$GITHUB_OUTPUT"
+
+  # ── macOS: Build + DMG ──
+  build-macos:
+    needs: validate
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Configure
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build --config Release -j
+
+      # TODO: Add code signing step here when Apple Developer account is ready
+      # - name: Sign plugins
+      #   run: ...
+      # - name: Notarize
+      #   run: ...
+
+      - name: Install create-dmg
+        run: brew install create-dmg
+
+      - name: Stage DMG contents
+        run: |
+          mkdir -p dmg-stage
+          cp -R "build/AdvancedEQ_artefacts/Release/VST3/Advanced EQ.vst3" dmg-stage/
+          cp -R "build/AdvancedEQ_artefacts/Release/AU/Advanced EQ.component" dmg-stage/
+          cp -R "build/AdvancedEQ_artefacts/Release/Standalone/Advanced EQ.app" dmg-stage/
+          if [ -d "build/AdvancedEQ_artefacts/Release/CLAP" ]; then
+            cp -R "build/AdvancedEQ_artefacts/Release/CLAP/Advanced EQ.clap" dmg-stage/
+          fi
+          cp packaging/installer/macos/README.txt dmg-stage/
+
+      - name: Create DMG
+        run: |
+          VERSION="${{ needs.validate.outputs.version }}"
+          create-dmg \
+            --volname "Advanced EQ $VERSION" \
+            --window-size 600 400 \
+            --icon-size 80 \
+            --text-size 14 \
+            --hide-extension "Advanced EQ.vst3" \
+            --hide-extension "Advanced EQ.component" \
+            --hide-extension "Advanced EQ.app" \
+            "AdvancedEQ-$VERSION-macOS.dmg" \
+            dmg-stage/
+
+      - name: Upload DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-dmg
+          path: AdvancedEQ-*.dmg
+
+  # ── Windows: Build + NSIS ──
+  build-windows:
+    needs: validate
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Configure
+        run: cmake -B build -G "Visual Studio 17 2022"
+
+      - name: Build
+        run: cmake --build build --config Release
+
+      - name: Build NSIS installer
+        run: |
+          $version = "${{ needs.validate.outputs.version }}"
+          $buildDir = "${{ github.workspace }}\build"
+          & "C:\Program Files (x86)\NSIS\makensis.exe" /DVERSION=$version /DBUILD_DIR=$buildDir packaging\installer\windows\AdvancedEQ.nsi
+        shell: pwsh
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: packaging/installer/windows/AdvancedEQ-*.exe
+
+  # ── Linux: Build + tar.gz ──
+  build-linux:
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Dependencies
+        run: >
+          sudo apt-get update && sudo apt-get install -y
+          libasound2-dev
+          libfreetype6-dev
+          libx11-dev
+          libxrandr-dev
+          libxcursor-dev
+          libxinerama-dev
+          libgl1-mesa-dev
+          libxcomposite-dev
+
+      - name: Configure
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build --config Release -j
+
+      - name: Package tar.gz
+        run: |
+          VERSION="${{ needs.validate.outputs.version }}"
+          STAGING="AdvancedEQ-$VERSION-Linux"
+          mkdir -p "$STAGING"
+          cp -r build/AdvancedEQ_artefacts/Release/VST3/*.vst3 "$STAGING/" 2>/dev/null || true
+          # Standalone path varies — find it
+          find build/AdvancedEQ_artefacts -name "Advanced EQ" -type f -executable -exec cp {} "$STAGING/AdvancedEQ" \; 2>/dev/null || true
+          cp packaging/installer/linux/install.sh "$STAGING/"
+          cp packaging/installer/linux/README.txt "$STAGING/"
+          chmod +x "$STAGING/install.sh"
+          tar czf "AdvancedEQ-$VERSION-Linux.tar.gz" "$STAGING"
+
+      - name: Upload archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-archive
+          path: AdvancedEQ-*-Linux.tar.gz
+
+  # ── Publish GitHub Release ──
+  release:
+    needs: [validate, build-macos, build-windows, build-linux]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Advanced EQ v${{ needs.validate.outputs.version }}
+          body: |
+            ## What's Changed
+
+            ${{ needs.validate.outputs.changelog }}
+
+            ## Installation
+
+            **macOS:** Download the `.dmg`, open it, and drag the plugin files to your Audio/Plug-Ins folders. See the README inside for Gatekeeper instructions.
+
+            **Windows:** Download and run the `.exe` installer. It will install the VST3 plugin and optionally the standalone app.
+
+            **Linux:** Download the `.tar.gz`, extract it, and run `./install.sh` — or manually copy the files (see README inside).
+          files: |
+            artifacts/macos-dmg/*.dmg
+            artifacts/windows-installer/*.exe
+            artifacts/linux-archive/*.tar.gz
+          draft: false
+          prerelease: false
