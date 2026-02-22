@@ -82,10 +82,18 @@ AdvancedEQEditor::AdvancedEQEditor (AdvancedEQProcessor& p)
     setSize (Constants::kDefaultEditorWidth, Constants::kDefaultEditorHeight);
     setResizable (true, true);
     setResizeLimits (825, 495, 2112, 1188);
+
+    // Enable GPU-accelerated rendering for all child components
+    openGLContext.setRenderer (curveDisplay.getGLRenderer());
+    openGLContext.setComponentPaintingEnabled (true);
+    openGLContext.setContinuousRepainting (false);
+    openGLContext.setMultisamplingEnabled (true);
+    openGLContext.attachTo (*this);
 }
 
 AdvancedEQEditor::~AdvancedEQEditor()
 {
+    openGLContext.detach();
     removeKeyListener (this);
     setLookAndFeel (nullptr);
 }

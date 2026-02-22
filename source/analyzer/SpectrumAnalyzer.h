@@ -85,6 +85,16 @@ public:
     /** Set spectrum tilt slope in dB/octave (0 = off, 4.5 = pink noise compensation). */
     void setTiltSlope (float slopeDBPerOctave) { tiltSlope = slopeDBPerOctave; }
 
+    /** @brief Returns the smoothed magnitude data (dB) for direct access.
+     *  @return Const reference to the smoothed magnitudes vector.
+     */
+    const std::vector<float>& getSmoothedMagnitudes() const { return smoothedMagnitudes; }
+
+    /** @brief Returns the number of display points.
+     *  @return The number of log-frequency display points.
+     */
+    int getNumPoints() const { return numPoints; }
+
     /**
      * Find the nearest spectrum peak to a given frequency.
      *

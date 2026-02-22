@@ -24,6 +24,7 @@
 #include "../../dsp/CascadedFilter.h"
 #include "../../analyzer/SpectrumAnalyzer.h"
 #include "../LookAndFeel/ColourPalette.h"
+#include "CurveDisplayRenderer.h"
 
 /**
  * @class EqCurveDisplay
@@ -104,6 +105,11 @@ public:
      *  @return The selected band index.
      */
     int getSelectedBand() const { return selectedBand; }
+
+    /** @brief Returns the GL renderer for attachment to an OpenGLContext.
+     *  @return Pointer to the CurveDisplayRenderer, or nullptr if not available.
+     */
+    CurveDisplayRenderer* getGLRenderer() { return glRenderer.get(); }
 
     /** @brief Freezes or unfreezes the spectrum analyzer display.
      *  @param frozen True to freeze the analyzer, false to resume real-time updates.
@@ -204,6 +210,13 @@ private:
     SpectrumAnalyzer spectrumAnalyzerPre;
     SpectrumAnalyzer spectrumAnalyzerPost;
     bool analyzerFrozen = false;
+
+    // OpenGL rendering
+    std::unique_ptr<CurveDisplayRenderer> glRenderer;
+    bool useOpenGL = true;
+
+    void prepareGLData();
+    void paintSoftware (juce::Graphics& g);
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (EqCurveDisplay)
 };

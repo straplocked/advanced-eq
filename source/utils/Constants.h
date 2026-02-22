@@ -90,7 +90,7 @@ namespace Constants
 
     // UI update rate
     /** @brief UI timer frequency in Hz (repaints per second). */
-    constexpr int kUITimerHz = 30;
+    constexpr int kUITimerHz = 60;
 
     // Curve resolution (number of points for magnitude response)
     /** @brief Number of points used to render magnitude response curves. */

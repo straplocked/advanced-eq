@@ -28,6 +28,9 @@ EqCurveDisplay::EqCurveDisplay (AdvancedEQProcessor& p)
     spectrumAnalyzerPost.prepare (Constants::kCurveResolution);
     previewFilter.prepare (44100.0);
 
+    // Create GL renderer for hardware-accelerated curve display
+    glRenderer = std::make_unique<CurveDisplayRenderer> (*this);
+
     setComponentID ("curve.display");
 
     startTimerHz (Constants::kUITimerHz);
@@ -124,6 +127,9 @@ void EqCurveDisplay::timerCallback()
             spectrumAnalyzerPost.update (processor.getFFTProcessorPost(), w, h);
         }
     }
+
+    if (useOpenGL && glRenderer != nullptr)
+        prepareGLData();
 
     repaint();
 }
@@ -263,6 +269,50 @@ float EqCurveDisplay::yToGain (float y) const
 
 void EqCurveDisplay::paint (juce::Graphics& g)
 {
+    if (! useOpenGL || glRenderer == nullptr || ! glRenderer->isReady())
+    {
+        paintSoftware (g);
+        return;
+    }
+
+    // GL renders: background, grid, spectrum, band curves, composite curve
+    // Software overlay renders: text, handles, tooltips, range buttons, previews
+
+    // Recessed screen inner shadows (software overlay — gradients)
+    {
+        float w = (float) getWidth();
+        float h = (float) getHeight();
+        auto shadow = ColourPalette::screenShadow();
+        auto transparent = shadow.withAlpha (0.0f);
+
+        juce::ColourGradient topShadow (shadow, 0, 0, transparent, 0, 8.0f, false);
+        g.setGradientFill (topShadow);
+        g.fillRect (0.0f, 0.0f, w, 8.0f);
+
+        juce::ColourGradient leftShadow (shadow, 0, 0, transparent, 6.0f, 0, false);
+        g.setGradientFill (leftShadow);
+        g.fillRect (0.0f, 0.0f, 6.0f, h);
+
+        g.setColour (ColourPalette::screenHighlight());
+        g.drawLine (0.0f, h - 0.5f, w, h - 0.5f, 1.0f);
+        g.drawLine (w - 0.5f, 0.0f, w - 0.5f, h, 1.0f);
+    }
+
+    // Preview and sketch (lightweight, software-only)
+    if (showPreview && ! sketchMode)
+        drawPreviewCurve (g);
+    if (sketchMode && ! sketchPoints.empty())
+        drawSketchPath (g);
+
+    drawBandHandles (g);
+    drawTooltip (g);
+    drawFrequencyLabels (g);
+    drawGainLabels (g);
+    drawRangeButtons (g);
+}
+
+void EqCurveDisplay::paintSoftware (juce::Graphics& g)
+{
     // Background
     g.fillAll (ColourPalette::curveArea());
 
@@ -273,21 +323,16 @@ void EqCurveDisplay::paint (juce::Graphics& g)
         auto shadow = ColourPalette::screenShadow();
         auto transparent = shadow.withAlpha (0.0f);
 
-        // Top inner shadow
         juce::ColourGradient topShadow (shadow, 0, 0, transparent, 0, 8.0f, false);
         g.setGradientFill (topShadow);
         g.fillRect (0.0f, 0.0f, w, 8.0f);
 
-        // Left inner shadow
         juce::ColourGradient leftShadow (shadow, 0, 0, transparent, 6.0f, 0, false);
         g.setGradientFill (leftShadow);
         g.fillRect (0.0f, 0.0f, 6.0f, h);
 
-        // Bottom catch-light
         g.setColour (ColourPalette::screenHighlight());
         g.drawLine (0.0f, h - 0.5f, w, h - 0.5f, 1.0f);
-
-        // Right catch-light
         g.drawLine (w - 0.5f, 0.0f, w - 0.5f, h, 1.0f);
     }
 
@@ -297,7 +342,6 @@ void EqCurveDisplay::paint (juce::Graphics& g)
     auto* analyzerOnParam = processor.getAPVTS().getRawParameterValue (ParamIDs::kAnalyzerOn);
     if (analyzerOnParam != nullptr && analyzerOnParam->load() >= 0.5f)
     {
-        // Always draw both pre and post spectra for visual comparison
         drawSpectrum (g, spectrumAnalyzerPre, ColourPalette::spectrumPre());
         drawSpectrum (g, spectrumAnalyzerPost, ColourPalette::spectrumPost());
     }
@@ -798,6 +842,174 @@ void EqCurveDisplay::drawTooltip (juce::Graphics& g)
 
 void EqCurveDisplay::resized()
 {
+}
+
+// --- GL Data Preparation ---
+
+void EqCurveDisplay::prepareGLData()
+{
+    float w = (float) getWidth();
+    float h = (float) getHeight();
+    if (w <= 0 || h <= 0)
+        return;
+
+    // --- Grid Data ---
+    {
+        CurveDisplayRenderer::GridData grid;
+
+        // Sub-octave frequency lines
+        static const float subFreqLines[] = { 30, 40, 60, 70, 80, 150, 250, 300, 400, 600,
+                                              700, 800, 1500, 2500, 3000, 4000, 6000, 7000,
+                                              8000, 15000 };
+        for (float freq : subFreqLines)
+            grid.subFreqLineXPositions.push_back (frequencyToX (freq) / w);
+
+        // Octave frequency lines
+        static const float freqLines[] = { 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000 };
+        for (float freq : freqLines)
+        {
+            float normX = frequencyToX (freq) / w;
+            bool isMajor = (freq > 99.0f && freq < 101.0f)
+                         || (freq > 999.0f && freq < 1001.0f)
+                         || (freq > 9999.0f && freq < 10001.0f);
+
+            if (isMajor)
+                grid.decadeFreqLineXPositions.push_back (normX);
+            else
+                grid.octaveFreqLineXPositions.push_back (normX);
+        }
+
+        // Gain lines
+        float step = getGridStep();
+        for (float db = displayMinDB; db <= displayMaxDB; db += step)
+        {
+            if (std::abs (db) >= 0.1f)  // Skip 0 dB — drawn as accent
+                grid.gainLineYPositions.push_back (gainToY (db) / h);
+        }
+
+        grid.zeroDbY = gainToY (0.0f) / h;
+
+        glRenderer->updateGridData (grid);
+    }
+
+    // --- Curve Data ---
+    {
+        CurveDisplayRenderer::CurveData curves;
+        curves.zeroDbY = gainToY (0.0f) / h;
+        curves.selectedBand = selectedBand;
+
+        auto& apvts = processor.getAPVTS();
+
+        for (int b = 0; b < Constants::kMaxBands; ++b)
+        {
+            auto* activeParam = apvts.getRawParameterValue (ParamIDs::bandParam (b, ParamIDs::kActive));
+            curves.bandActive[(size_t) b] = (activeParam->load() >= 0.5f);
+            curves.bandColours[(size_t) b] = ColourPalette::bandColour (b);
+
+            if (! curves.bandActive[(size_t) b])
+                continue;
+
+            auto& bandVerts = curves.bandVertices[(size_t) b];
+            for (int i = 0; i < Constants::kCurveResolution; ++i)
+            {
+                float normX = (float) i / (float) (Constants::kCurveResolution - 1);
+                float pixelY = gainToY ((float) bandMagnitudes[(size_t) b][(size_t) i]);
+                bandVerts[(size_t) (i * 2)] = normX;
+                bandVerts[(size_t) (i * 2 + 1)] = pixelY / h;
+            }
+        }
+
+        // Composite curve
+        for (int i = 0; i < Constants::kCurveResolution; ++i)
+        {
+            float normX = (float) i / (float) (Constants::kCurveResolution - 1);
+            float pixelY = gainToY ((float) compositeMagnitudes[(size_t) i]);
+            curves.compositeVertices[(size_t) (i * 2)] = normX;
+            curves.compositeVertices[(size_t) (i * 2 + 1)] = pixelY / h;
+        }
+
+        // Per-channel composites
+        curves.hasPerChannelLR = showPerChannelLR;
+        curves.hasPerChannelMS = showPerChannelMS;
+
+        if (showPerChannelLR)
+        {
+            for (int i = 0; i < Constants::kCurveResolution; ++i)
+            {
+                float normX = (float) i / (float) (Constants::kCurveResolution - 1);
+                curves.leftVertices[(size_t) (i * 2)] = normX;
+                curves.leftVertices[(size_t) (i * 2 + 1)] = gainToY ((float) leftCompositeMagnitudes[(size_t) i]) / h;
+                curves.rightVertices[(size_t) (i * 2)] = normX;
+                curves.rightVertices[(size_t) (i * 2 + 1)] = gainToY ((float) rightCompositeMagnitudes[(size_t) i]) / h;
+            }
+        }
+
+        if (showPerChannelMS)
+        {
+            for (int i = 0; i < Constants::kCurveResolution; ++i)
+            {
+                float normX = (float) i / (float) (Constants::kCurveResolution - 1);
+                curves.midVertices[(size_t) (i * 2)] = normX;
+                curves.midVertices[(size_t) (i * 2 + 1)] = gainToY ((float) midCompositeMagnitudes[(size_t) i]) / h;
+                curves.sideVertices[(size_t) (i * 2)] = normX;
+                curves.sideVertices[(size_t) (i * 2 + 1)] = gainToY ((float) sideCompositeMagnitudes[(size_t) i]) / h;
+            }
+        }
+
+        glRenderer->updateCurveData (curves);
+    }
+
+    // --- Spectrum Data ---
+    {
+        CurveDisplayRenderer::SpectrumData spectrum;
+        spectrum.preColour = ColourPalette::spectrumPre();
+        spectrum.postColour = ColourPalette::spectrumPost();
+
+        auto* analyzerOnParam = processor.getAPVTS().getRawParameterValue (ParamIDs::kAnalyzerOn);
+        bool analyzerOn = (analyzerOnParam != nullptr && analyzerOnParam->load() >= 0.5f);
+
+        if (analyzerOn)
+        {
+            // Convert pre-EQ spectrum to normalized vertices
+            auto& preMags = spectrumAnalyzerPre.getSmoothedMagnitudes();
+            int numPrePts = spectrumAnalyzerPre.getNumPoints();
+            if (numPrePts > 1 && (int) preMags.size() >= numPrePts)
+            {
+                spectrum.hasPreData = true;
+                spectrum.preVertices.resize ((size_t) numPrePts * 2);
+                for (int i = 0; i < numPrePts; ++i)
+                {
+                    float normX = (float) i / (float) (numPrePts - 1);
+                    // Map analyzer dB range to normalized Y
+                    float normalized = (preMags[(size_t) i] - Constants::kAnalyzerMinDB)
+                                     / (Constants::kAnalyzerMaxDB - Constants::kAnalyzerMinDB);
+                    float normY = juce::jlimit (0.0f, 1.0f, 1.0f - normalized);
+                    spectrum.preVertices[(size_t) (i * 2)] = normX;
+                    spectrum.preVertices[(size_t) (i * 2 + 1)] = normY;
+                }
+            }
+
+            // Convert post-EQ spectrum to normalized vertices
+            auto& postMags = spectrumAnalyzerPost.getSmoothedMagnitudes();
+            int numPostPts = spectrumAnalyzerPost.getNumPoints();
+            if (numPostPts > 1 && (int) postMags.size() >= numPostPts)
+            {
+                spectrum.hasPostData = true;
+                spectrum.postVertices.resize ((size_t) numPostPts * 2);
+                for (int i = 0; i < numPostPts; ++i)
+                {
+                    float normX = (float) i / (float) (numPostPts - 1);
+                    float normalized = (postMags[(size_t) i] - Constants::kAnalyzerMinDB)
+                                     / (Constants::kAnalyzerMaxDB - Constants::kAnalyzerMinDB);
+                    float normY = juce::jlimit (0.0f, 1.0f, 1.0f - normalized);
+                    spectrum.postVertices[(size_t) (i * 2)] = normX;
+                    spectrum.postVertices[(size_t) (i * 2 + 1)] = normY;
+                }
+            }
+        }
+
+        glRenderer->updateSpectrumData (spectrum);
+    }
 }
 
 // --- Mouse Interaction ---

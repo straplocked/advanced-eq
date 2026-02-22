@@ -54,5 +54,8 @@ private:
     juce::Rectangle<int> previousBounds;
     void toggleFullScreen();
 
+    // GPU-accelerated rendering
+    juce::OpenGLContext openGLContext;
+
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AdvancedEQEditor)
 };
