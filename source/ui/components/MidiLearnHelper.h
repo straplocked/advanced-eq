@@ -43,12 +43,12 @@ namespace MidiLearnHelper
         }
 
         menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (parent),
-            [&midiLearn, parameterID] (int result)
+            [ml = &midiLearn, parameterID] (int result)
             {
                 if (result == 1)
-                    midiLearn.startLearn (parameterID);
+                    ml->startLearn (parameterID);
                 else if (result == 2)
-                    midiLearn.removeMapping (parameterID);
+                    ml->removeMapping (parameterID);
             });
     }
 }

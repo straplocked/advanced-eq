@@ -46,41 +46,54 @@ void MidiMappingsPanel::refreshMappings()
 {
     auto mappings = midiLearn.getMappings();
 
-    // Rebuild rows if count changed
-    if ((int) mappings.size() != rows.size())
+    // Build a fingerprint to detect content changes (not just count)
+    juce::String fingerprint;
+    for (const auto& [cc, mapping] : mappings)
+        fingerprint += juce::String (cc) + ":" + mapping.parameterID + ";";
+
+    if (fingerprint == lastFingerprint)
+        return;
+
+    lastFingerprint = fingerprint;
+
+    // Remove old row child components before clearing
+    for (auto* row : rows)
     {
-        rows.clear();
-
-        for (const auto& [cc, mapping] : mappings)
-        {
-            auto* row = rows.add (new MappingRow());
-
-            row->ccLabel.setText ("CC " + juce::String (cc), juce::dontSendNotification);
-            row->ccLabel.setFont (12.0f);
-            row->ccLabel.setColour (juce::Label::textColourId, juce::Colour (0xff66ccff));
-            row->ccLabel.setJustificationType (juce::Justification::centredLeft);
-            addAndMakeVisible (row->ccLabel);
-
-            row->paramLabel.setText (mapping.parameterID, juce::dontSendNotification);
-            row->paramLabel.setFont (12.0f);
-            row->paramLabel.setColour (juce::Label::textColourId, ColourPalette::textBright());
-            row->paramLabel.setJustificationType (juce::Justification::centredLeft);
-            addAndMakeVisible (row->paramLabel);
-
-            juce::String paramID = mapping.parameterID;
-            row->clearButton.setColour (juce::TextButton::buttonColourId, juce::Colours::transparentBlack);
-            row->clearButton.setColour (juce::TextButton::textColourOffId, ColourPalette::textDim());
-            row->clearButton.onClick = [this, paramID]
-            {
-                midiLearn.removeMapping (paramID);
-                refreshMappings();
-            };
-            addAndMakeVisible (row->clearButton);
-        }
-
-        resized();
-        repaint();
+        removeChildComponent (&row->ccLabel);
+        removeChildComponent (&row->paramLabel);
+        removeChildComponent (&row->clearButton);
     }
+    rows.clear();
+
+    for (const auto& [cc, mapping] : mappings)
+    {
+        auto* row = rows.add (new MappingRow());
+
+        row->ccLabel.setText ("CC " + juce::String (cc), juce::dontSendNotification);
+        row->ccLabel.setFont (12.0f);
+        row->ccLabel.setColour (juce::Label::textColourId, juce::Colour (0xff66ccff));
+        row->ccLabel.setJustificationType (juce::Justification::centredLeft);
+        addAndMakeVisible (row->ccLabel);
+
+        row->paramLabel.setText (mapping.parameterID, juce::dontSendNotification);
+        row->paramLabel.setFont (12.0f);
+        row->paramLabel.setColour (juce::Label::textColourId, ColourPalette::textBright());
+        row->paramLabel.setJustificationType (juce::Justification::centredLeft);
+        addAndMakeVisible (row->paramLabel);
+
+        juce::String paramID = mapping.parameterID;
+        row->clearButton.setColour (juce::TextButton::buttonColourId, juce::Colours::transparentBlack);
+        row->clearButton.setColour (juce::TextButton::textColourOffId, ColourPalette::textDim());
+        row->clearButton.onClick = [this, paramID]
+        {
+            midiLearn.removeMapping (paramID);
+            refreshMappings();
+        };
+        addAndMakeVisible (row->clearButton);
+    }
+
+    resized();
+    repaint();
 }
 
 void MidiMappingsPanel::paint (juce::Graphics& g)

@@ -6,6 +6,7 @@
 #pragma once
 
 #include <juce_audio_processors/juce_audio_processors.h>
+#include <atomic>
 #include <map>
 #include <mutex>
 
@@ -176,6 +177,6 @@ private:
 
     mutable std::mutex mutex;
     std::map<int, MidiMapping> mappings; // CC number -> mapping
-    bool learning = false;
+    std::atomic<bool> learning { false };
     juce::String learnTargetParam;
 };

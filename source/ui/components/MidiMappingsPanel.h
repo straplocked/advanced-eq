@@ -38,6 +38,7 @@ private:
         juce::TextButton clearButton { "X" };
     };
     juce::OwnedArray<MappingRow> rows;
+    juce::String lastFingerprint;
 
     void refreshMappings();
 
