@@ -1312,6 +1312,44 @@ void EqCurveDisplay::showBandContextMenu (int band)
     menu.addItem (5, "Copy Band");
     menu.addItem (6, "Paste Band");
 
+    // MIDI Learn submenu for band parameters
+    menu.addSeparator();
+    {
+        juce::PopupMenu midiLearnMenu;
+        auto& midiLearn = processor.getMidiLearnManager();
+        auto currentMappings = midiLearn.getMappings();
+
+        struct BandParamInfo { const char* suffix; const char* label; int menuID; };
+        BandParamInfo params[] = {
+            { ParamIDs::kFrequency,   "Frequency",     400 },
+            { ParamIDs::kGain,        "Gain",          401 },
+            { ParamIDs::kQ,           "Q",             402 },
+            { ParamIDs::kDynThresh,   "Dyn Threshold", 403 },
+            { ParamIDs::kDynRange,    "Dyn Range",     404 },
+            { ParamIDs::kDynAttack,   "Dyn Attack",    405 },
+            { ParamIDs::kDynRelease,  "Dyn Release",   406 },
+        };
+
+        for (auto& p : params)
+        {
+            auto paramID = ParamIDs::bandParam (band, p.suffix);
+            juce::String label = p.label;
+            for (const auto& [cc, mapping] : currentMappings)
+            {
+                if (mapping.parameterID == paramID)
+                {
+                    label += " (CC " + juce::String (cc) + ")";
+                    break;
+                }
+            }
+            midiLearnMenu.addItem (p.menuID, label);
+        }
+        midiLearnMenu.addSeparator();
+        midiLearnMenu.addItem (410, "Clear All Band Mappings");
+
+        menu.addSubMenu ("MIDI Learn", midiLearnMenu);
+    }
+
     menu.showMenuAsync (juce::PopupMenu::Options(),
         [this, band] (int result)
         {
@@ -1433,6 +1471,27 @@ void EqCurveDisplay::showBandContextMenu (int band)
             else if (result == 6) // Paste Band
             {
                 pasteBandFromClipboard (band);
+            }
+            else if (result >= 400 && result <= 406) // MIDI Learn
+            {
+                static const char* suffixes[] = {
+                    ParamIDs::kFrequency, ParamIDs::kGain, ParamIDs::kQ,
+                    ParamIDs::kDynThresh, ParamIDs::kDynRange,
+                    ParamIDs::kDynAttack, ParamIDs::kDynRelease
+                };
+                auto paramID = ParamIDs::bandParam (band, suffixes[result - 400]);
+                processor.getMidiLearnManager().startLearn (paramID);
+            }
+            else if (result == 410) // Clear All Band Mappings
+            {
+                auto& ml = processor.getMidiLearnManager();
+                static const char* suffixes[] = {
+                    ParamIDs::kFrequency, ParamIDs::kGain, ParamIDs::kQ,
+                    ParamIDs::kDynThresh, ParamIDs::kDynRange,
+                    ParamIDs::kDynAttack, ParamIDs::kDynRelease
+                };
+                for (auto* s : suffixes)
+                    ml.removeMapping (ParamIDs::bandParam (band, s));
             }
 
             repaint();

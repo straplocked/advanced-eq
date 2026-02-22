@@ -22,6 +22,7 @@ public:
     void paint (juce::Graphics& g) override;
     void resized() override;
     void timerCallback() override;
+    void mouseDown (const juce::MouseEvent& e) override;
 
     void setSelectedBand (int bandIndex);
     int getSelectedBand() const { return selectedBand; }
@@ -103,10 +104,20 @@ private:
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> dynAttackAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> dynReleaseAttachment;
 
+    // MIDI Learn visual feedback
+    bool wasLearning = false;
+
+    // MIDI Map panel toggle
+    juce::TextButton midiMapButton { "MIDI" };
+
     void updateAttachments();
     void updateSlopeEnabled();
     void updateValueLabels();
     void setControlsVisible (bool visible);
 
+public:
+    std::function<void()> onMidiMapClicked;
+
+private:
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (BottomControlStrip)
 };

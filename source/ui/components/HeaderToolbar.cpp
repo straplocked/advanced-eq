@@ -10,6 +10,7 @@
  */
 
 #include "HeaderToolbar.h"
+#include "MidiLearnHelper.h"
 #include "../LookAndFeel/Fonts.h"
 
 HeaderToolbar::HeaderToolbar (AdvancedEQProcessor& p)
@@ -233,6 +234,34 @@ void HeaderToolbar::presetChanged()
 void HeaderToolbar::updatePresetName()
 {
     presetNameButton.setButtonText (presetManager.getCurrentPresetName());
+}
+
+void HeaderToolbar::mouseDown (const juce::MouseEvent& e)
+{
+    if (! e.mods.isPopupMenu())
+    {
+        Component::mouseDown (e);
+        return;
+    }
+
+    auto& midiLearn = processor.getMidiLearnManager();
+    auto pos = e.getEventRelativeTo (this).getPosition();
+
+    if (outputGainSlider.getBounds().contains (pos))
+    {
+        MidiLearnHelper::showMidiLearnMenu (&outputGainSlider, midiLearn,
+                                             ParamIDs::kOutputGain, "Output Gain");
+        return;
+    }
+
+    if (outputWidthSlider.getBounds().contains (pos))
+    {
+        MidiLearnHelper::showMidiLearnMenu (&outputWidthSlider, midiLearn,
+                                             ParamIDs::kOutputWidth, "Output Width");
+        return;
+    }
+
+    Component::mouseDown (e);
 }
 
 void HeaderToolbar::showSaveDialog()

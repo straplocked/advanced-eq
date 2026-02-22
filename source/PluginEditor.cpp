@@ -19,7 +19,8 @@ AdvancedEQEditor::AdvancedEQEditor (AdvancedEQProcessor& p)
       levelMeter (p),
       matchPanel (p),
       presetBrowser (p.getPresetManager()),
-      instanceList (p.getInstanceRegistry())
+      instanceList (p.getInstanceRegistry()),
+      midiMappingsPanel (p.getMidiLearnManager())
 {
     setLookAndFeel (&lookAndFeel);
 
@@ -72,6 +73,15 @@ AdvancedEQEditor::AdvancedEQEditor (AdvancedEQProcessor& p)
 
     // Instance list panel (initially hidden)
     addChildComponent (instanceList);
+
+    // MIDI mappings panel (initially hidden)
+    addChildComponent (midiMappingsPanel);
+
+    // Wire MIDI Map button in control strip
+    controlStrip.onMidiMapClicked = [this]
+    {
+        midiMappingsPanel.setVisible (! midiMappingsPanel.isVisible());
+    };
 
     // Help overlay (topmost child, transparent to mouse clicks — shows on hover)
     addAndMakeVisible (helpOverlay);
@@ -133,6 +143,11 @@ void AdvancedEQEditor::resized()
     instanceList.setBounds (curveBoundsForBrowser.getX(),
                              curveBoundsForBrowser.getY(),
                              350, curveBoundsForBrowser.getHeight());
+
+    // MIDI mappings panel (left overlay on curve display)
+    midiMappingsPanel.setBounds (curveBoundsForBrowser.getX(),
+                                  curveBoundsForBrowser.getY(),
+                                  300, curveBoundsForBrowser.getHeight());
 
     // Help overlay covers entire editor, always on top
     helpOverlay.setBounds (getLocalBounds());

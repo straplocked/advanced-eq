@@ -14,6 +14,7 @@
 #include "ui/help/HelpOverlay.h"
 #include "ui/components/PresetBrowserPanel.h"
 #include "ui/components/InstanceListPanel.h"
+#include "ui/components/MidiMappingsPanel.h"
 #include "ui/LookAndFeel/AdvancedEqLookAndFeel.h"
 #include <juce_gui_extra/juce_gui_extra.h>
 #include <juce_opengl/juce_opengl.h>
@@ -48,6 +49,7 @@ private:
     HelpOverlay helpOverlay;
     PresetBrowserPanel presetBrowser;
     InstanceListPanel instanceList;
+    MidiMappingsPanel midiMappingsPanel;
 
     // Fullscreen
     bool isFullScreen = false;

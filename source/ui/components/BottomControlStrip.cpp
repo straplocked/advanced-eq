@@ -5,6 +5,7 @@
  */
 
 #include "BottomControlStrip.h"
+#include "MidiLearnHelper.h"
 #include "../../utils/FrequencyUtils.h"
 
 BottomControlStrip::BottomControlStrip (AdvancedEQProcessor& p)
@@ -214,6 +215,16 @@ BottomControlStrip::BottomControlStrip (AdvancedEQProcessor& p)
     lpQualityAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (
         apvts, ParamIDs::kLinearPhaseQuality, lpQualitySelector);
 
+    // MIDI Map panel toggle
+    midiMapButton.setColour (juce::TextButton::buttonColourId, juce::Colours::transparentBlack);
+    midiMapButton.setColour (juce::TextButton::textColourOffId, ColourPalette::textDim());
+    midiMapButton.onClick = [this]
+    {
+        if (onMidiMapClicked)
+            onMidiMapClicked();
+    };
+    addAndMakeVisible (midiMapButton);
+
     // Component IDs for help system (global tools)
     phaseInvertButton.setComponentID ("bottom.phaseInvert");
     characterSelector.setComponentID ("bottom.character");
@@ -222,6 +233,7 @@ BottomControlStrip::BottomControlStrip (AdvancedEQProcessor& p)
     matchButton.setComponentID ("bottom.match");
     sketchButton.setComponentID ("bottom.sketch");
     midiPCButton.setComponentID ("bottom.midiPC");
+    midiMapButton.setComponentID ("bottom.midiMap");
     processModeSelector.setComponentID ("bottom.processMode");
     lpQualitySelector.setComponentID ("bottom.lpQuality");
 
@@ -424,6 +436,49 @@ void BottomControlStrip::timerCallback()
         updateSlopeEnabled();
         updateValueLabels();
     }
+
+    // MIDI learn visual feedback
+    bool nowLearning = processor.getMidiLearnManager().isLearning();
+    if (nowLearning != wasLearning)
+    {
+        wasLearning = nowLearning;
+        repaint();
+    }
+}
+
+void BottomControlStrip::mouseDown (const juce::MouseEvent& e)
+{
+    if (! e.mods.isPopupMenu() || selectedBand < 0)
+    {
+        Component::mouseDown (e);
+        return;
+    }
+
+    auto& midiLearn = processor.getMidiLearnManager();
+
+    struct SliderParam { juce::Slider& slider; const char* suffix; const char* name; };
+    SliderParam sliders[] = {
+        { freqSlider,       ParamIDs::kFrequency,   "Frequency" },
+        { gainSlider,       ParamIDs::kGain,        "Gain" },
+        { qSlider,          ParamIDs::kQ,           "Q" },
+        { dynThreshSlider,  ParamIDs::kDynThresh,   "Dyn Threshold" },
+        { dynRangeSlider,   ParamIDs::kDynRange,    "Dyn Range" },
+        { dynAttackSlider,  ParamIDs::kDynAttack,   "Dyn Attack" },
+        { dynReleaseSlider, ParamIDs::kDynRelease,  "Dyn Release" },
+    };
+
+    auto pos = e.getEventRelativeTo (this).getPosition();
+    for (auto& sp : sliders)
+    {
+        if (sp.slider.isVisible() && sp.slider.getBounds().contains (pos))
+        {
+            auto paramID = ParamIDs::bandParam (selectedBand, sp.suffix);
+            MidiLearnHelper::showMidiLearnMenu (&sp.slider, midiLearn, paramID, sp.name);
+            return;
+        }
+    }
+
+    Component::mouseDown (e);
 }
 
 void BottomControlStrip::paint (juce::Graphics& g)
@@ -473,6 +528,13 @@ void BottomControlStrip::paint (juce::Graphics& g)
         g.setColour (colour);
         g.fillEllipse (dotX - 5.0f, dotY - 5.0f, 10.0f, 10.0f);
     }
+
+    // MIDI learn active indicator border
+    if (processor.getMidiLearnManager().isLearning())
+    {
+        g.setColour (juce::Colour (0xff66ccff).withAlpha (0.6f));
+        g.drawRect (getLocalBounds().toFloat(), 2.0f);
+    }
 }
 
 void BottomControlStrip::resized()
@@ -486,7 +548,7 @@ void BottomControlStrip::resized()
     // Centre the toolbar controls within the full-width row
     int totalToolW = 100 + 2 + 70 + 2 + 85 + 2 + 26  // selectors + phase
                    + 12                                   // gap
-                   + 56 + 2 + 26 + 2 + 38 + 2 + 26 + 2 + 48; // buttons
+                   + 56 + 2 + 26 + 2 + 38 + 2 + 26 + 2 + 48 + 2 + 36; // buttons + MIDI Map
     auto tb = toolbarRow.withSizeKeepingCentre (juce::jmin (totalToolW, toolbarRow.getWidth()),
                                                  toolbarRow.getHeight());
 
@@ -520,6 +582,9 @@ void BottomControlStrip::resized()
     tb.removeFromLeft (2);
     auto midiArea = tb.removeFromLeft (48);
     midiPCButton.setBounds (midiArea.withHeight (22).withCentre (midiArea.getCentre()));
+    tb.removeFromLeft (2);
+    auto midiMapArea = tb.removeFromLeft (36);
+    midiMapButton.setBounds (midiMapArea.withHeight (22).withCentre (midiMapArea.getCentre()));
 
     // --- Top row: band controls (centred) ---
     int knobSize = 50;
