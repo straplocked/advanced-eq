@@ -56,7 +56,7 @@ jobs:
   # ── macOS: Build + DMG ──
   build-macos:
     needs: validate
-    runs-on: macos-15
+    runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
         with:
@@ -111,14 +111,14 @@ jobs:
   # ── Windows: Build + NSIS ──
   build-windows:
     needs: validate
-    runs-on: windows-2022
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
 
       - name: Configure
-        run: cmake -B build -G "Visual Studio 17 2022"
+        run: cmake -B build
 
       - name: Build
         run: cmake --build build --config Release
