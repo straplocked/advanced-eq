@@ -267,6 +267,15 @@ float EqCurveDisplay::yToGain (float y) const
 
 // --- Drawing ---
 
+void EqCurveDisplay::setUseOpenGL (bool shouldUseOpenGL)
+{
+    if (useOpenGL == shouldUseOpenGL)
+        return;
+
+    useOpenGL = shouldUseOpenGL;
+    repaint();
+}
+
 void EqCurveDisplay::paint (juce::Graphics& g)
 {
     if (! useOpenGL || glRenderer == nullptr || ! glRenderer->isReady())

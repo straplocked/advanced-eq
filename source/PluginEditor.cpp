@@ -10,6 +10,31 @@
 #include "parameters/ParameterIDs.h"
 #include "ui/LookAndFeel/ColourPalette.h"
 
+#include <cstdlib>
+
+namespace
+{
+    // How long to wait for the GL renderer to become usable before giving up
+    // and painting in software instead.
+    constexpr int kGLProbeIntervalMs = 250;
+    constexpr int kGLProbeMaxAttempts = 8;   // ~2 seconds
+
+    /** Returns true if the user has explicitly asked us not to use OpenGL.
+     *
+     *  Set ADVANCED_EQ_DISABLE_OPENGL to any value other than "0" to force the
+     *  software rendering path. This exists for machines whose GL drivers are
+     *  broken or absent, and for headless/automated captures where no usable
+     *  GL surface is available.
+     */
+    bool openGLDisabledByEnvironment()
+    {
+        if (const char* raw = std::getenv ("ADVANCED_EQ_DISABLE_OPENGL"))
+            return juce::String (raw).trim() != "0";
+
+        return false;
+    }
+}
+
 AdvancedEQEditor::AdvancedEQEditor (AdvancedEQProcessor& p)
     : AudioProcessorEditor (&p),
       processorRef (p),
@@ -93,17 +118,63 @@ AdvancedEQEditor::AdvancedEQEditor (AdvancedEQProcessor& p)
     setResizable (true, true);
     setResizeLimits (825, 495, 2112, 1188);
 
-    // Enable GPU-accelerated rendering for all child components
-    openGLContext.setRenderer (curveDisplay.getGLRenderer());
-    openGLContext.setComponentPaintingEnabled (true);
-    openGLContext.setContinuousRepainting (false);
-    openGLContext.setMultisamplingEnabled (true);
-    openGLContext.attachTo (*this);
+    // Enable GPU-accelerated rendering for all child components, unless the
+    // user has opted out. ADVANCED_EQ_DISABLE_OPENGL=1 forces the software
+    // path, which is useful on machines with broken GL drivers and for
+    // headless captures.
+    if (openGLDisabledByEnvironment())
+    {
+        curveDisplay.setUseOpenGL (false);
+    }
+    else
+    {
+        openGLContext.setRenderer (curveDisplay.getGLRenderer());
+        openGLContext.setComponentPaintingEnabled (true);
+        openGLContext.setContinuousRepainting (false);
+        openGLContext.setMultisamplingEnabled (true);
+        openGLContext.attachTo (*this);
+        openGLActive = true;
+
+        // Attaching does not guarantee the renderer will come up, so check back
+        // shortly and fall back to software if it has not.
+        startTimer (kGLProbeIntervalMs);
+    }
+}
+
+void AdvancedEQEditor::timerCallback()
+{
+    auto* renderer = curveDisplay.getGLRenderer();
+
+    if (renderer != nullptr && renderer->isReady())
+    {
+        stopTimer();   // GL is up; nothing to do
+        return;
+    }
+
+    if (++glProbeAttempts >= kGLProbeMaxAttempts)
+    {
+        stopTimer();
+        fallBackToSoftwareRendering();
+    }
+}
+
+void AdvancedEQEditor::fallBackToSoftwareRendering()
+{
+    if (! openGLActive)
+        return;
+
+    openGLContext.detach();
+    openGLActive = false;
+    curveDisplay.setUseOpenGL (false);
+    curveDisplay.repaint();
 }
 
 AdvancedEQEditor::~AdvancedEQEditor()
 {
-    openGLContext.detach();
+    stopTimer();
+
+    if (openGLActive)
+        openGLContext.detach();
     removeKeyListener (this);
     setLookAndFeel (nullptr);
 }
