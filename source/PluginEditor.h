@@ -20,7 +20,8 @@
 #include <juce_opengl/juce_opengl.h>
 
 class AdvancedEQEditor : public juce::AudioProcessorEditor,
-                         public juce::KeyListener
+                         public juce::KeyListener,
+                         private juce::Timer
 {
 public:
     explicit AdvancedEQEditor (AdvancedEQProcessor&);
@@ -56,8 +57,19 @@ private:
     juce::Rectangle<int> previousBounds;
     void toggleFullScreen();
 
-    // GPU-accelerated rendering
+    // GPU-accelerated rendering, with a software fallback.
+    //
+    // Attaching a context can succeed while the renderer never becomes usable
+    // (missing or broken drivers, a compositor that will not give us a surface,
+    // software rasterisers that fail to compile our shaders). When that happens
+    // the curve display would otherwise stay blank, so we probe the renderer
+    // after attaching and fall back to paintSoftware() if it never comes up.
     juce::OpenGLContext openGLContext;
+    bool openGLActive = false;
+    int glProbeAttempts = 0;
+
+    void timerCallback() override;
+    void fallBackToSoftwareRendering();
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AdvancedEQEditor)
 };

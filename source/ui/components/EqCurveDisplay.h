@@ -111,6 +111,18 @@ public:
      */
     CurveDisplayRenderer* getGLRenderer() { return glRenderer.get(); }
 
+    /** @brief Chooses between GPU and software rendering for this display.
+     *
+     *  The editor calls this with false when an OpenGL context could not be
+     *  brought up, so the curve, grid and analyser still draw via paintSoftware().
+     *
+     *  @param shouldUseOpenGL True to render via OpenGL, false for software.
+     */
+    void setUseOpenGL (bool shouldUseOpenGL);
+
+    /** @brief Returns true if this display is currently rendering via OpenGL. */
+    bool isUsingOpenGL() const { return useOpenGL; }
+
     /** @brief Freezes or unfreezes the spectrum analyzer display.
      *  @param frozen True to freeze the analyzer, false to resume real-time updates.
      */
